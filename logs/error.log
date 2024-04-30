@@ -1,0 +1,17 @@
+[Sat Apr 27 22:10:40.856311 2024] [mime:error] [pid 16136:tid 356] (OS 3)The system cannot find the path specified.  : AH01597: could not open mime types config file C:/MyApacheServer/conf/mime.types.
+AH00016: Configuration Failed
+[Sat Apr 27 22:10:59.716409 2024] [mime:error] [pid 26240:tid 356] (OS 3)The system cannot find the path specified.  : AH01597: could not open mime types config file C:/MyApacheServer/conf/mime.types.
+AH00016: Configuration Failed
+[Sat Apr 27 22:12:49.089781 2024] [mime:error] [pid 3172:tid 376] (OS 3)The system cannot find the path specified.  : AH01597: could not open mime types config file C:/MyApacheServer/conf/mime.types.
+AH00016: Configuration Failed
+[Sat Apr 27 22:12:57.789856 2024] [mime:error] [pid 18112:tid 368] (OS 3)The system cannot find the path specified.  : AH01597: could not open mime types config file C:/MyApacheServer/conf/mime.types.
+AH00016: Configuration Failed
+[Sat Apr 27 22:13:18.631440 2024] [mime:error] [pid 23976:tid 356] (OS 3)The system cannot find the path specified.  : AH01597: could not open mime types config file C:/MyApacheServer/conf/mime.types.
+AH00016: Configuration Failed
+[Sat Apr 27 22:16:02.755829 2024] [mime:error] [pid 29812:tid 356] (OS 3)The system cannot find the path specified.  : AH01597: could not open mime types config file C:/MyApacheServer/conf/mime.types.
+AH00016: Configuration Failed
+[Sat Apr 27 22:17:24.953859 2024] [mpm_winnt:notice] [pid 26820:tid 356] AH00455: Apache/2.4.59 (Win64) configured -- resuming normal operations
+[Sat Apr 27 22:17:24.954859 2024] [mpm_winnt:notice] [pid 26820:tid 356] AH00456: Apache Lounge VS17 Server built: Apr  4 2024 15:03:17
+[Sat Apr 27 22:17:24.954859 2024] [core:notice] [pid 26820:tid 356] AH00094: Command line: 'httpd.exe -d C:/httpd-2.4.59/httpd-2.4.59-240404-win64-VS17/Apache24'
+[Sat Apr 27 22:17:24.961032 2024] [mpm_winnt:notice] [pid 26820:tid 356] AH00418: Parent: Created child process 26648
+[Sat Apr 27 22:17:26.194426 2024] [mpm_winnt:notice] [pid 26648:tid 364] AH00354: Child: Starting 64 worker threads.
