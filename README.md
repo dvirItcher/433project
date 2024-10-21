@@ -1,3 +1,42 @@
+
+from scapy.all import *
+import time
+
+# Replace with the destination MAC address
+dest_mac = "aa:bb:cc:dd:ee:ff"
+# Replace with the source MAC address
+source_mac = get_if_hwaddr(conf.iface)  # gets the MAC address of your interface
+
+interface = "eth0"  # Replace with your network interface
+
+# Send a custom message
+def send_message(message):
+    frame = Ether(src=source_mac, dst=dest_mac) / Raw(load=message)
+    sendp(frame, iface=interface)
+
+# Wait for the response
+def wait_for_response():
+    def handle_packet(packet):
+        if packet[Ether].src == dest_mac and packet.haslayer(Raw):
+            print(f"Received: {packet[Raw].load.decode()}")
+            return True
+        return False
+
+    sniff(iface=interface, prn=handle_packet, timeout=10, stop_filter=handle_packet)
+
+if __name__ == "__main__":
+    while True:
+        message = input("Enter your message to send: ")
+        print(f"Sending: {message}")
+        send_message(message.encode())  # Send the message
+        print("Waiting for a response...")
+        wait_for_response()
+        time.sleep(2)
+
+
+
+        
+
 433 project
 I tried to do the project in JAVA,
 that's why I couldn't really finish,
