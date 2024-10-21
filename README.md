@@ -35,6 +35,45 @@ if __name__ == "__main__":
 
 
 
+from scapy.all import *
+import time
+
+# Replace with the source MAC address
+ping_mac = "aa:bb:cc:dd:ee:ff"
+# Replace with the destination MAC address
+pong_mac = get_if_hwaddr(conf.iface)  # gets the MAC address of your interface
+
+interface = "eth0"  # Replace with your network interface
+
+# Send a response back
+def send_response(response):
+    frame = Ether(src=pong_mac, dst=ping_mac) / Raw(load=response)
+    sendp(frame, iface=interface)
+
+# Wait for an incoming message
+def wait_for_message():
+    def handle_packet(packet):
+        if packet[Ether].src == ping_mac and packet.haslayer(Raw):
+            message = packet[Raw].load.decode()
+            print(f"Received: {message}")
+            return message
+        return None
+
+    packet = sniff(iface=interface, prn=handle_packet, timeout=10, stop_filter=handle_packet)
+    return packet[0].load.decode() if packet else None
+
+if __name__ == "__main__":
+    while True:
+        print("Waiting for a message...")
+        message = wait_for_message()
+        if message:
+            print(f"Message received: {message}")
+            response = input("Enter your response: ")
+            send_response(response.encode())  # Send a response back
+        time.sleep(2)
+        
+
+
         
 
 433 project
