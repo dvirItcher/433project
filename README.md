@@ -1,3 +1,25 @@
+# יש להחליף את שם הקבוצה הרצויה כאן
+$groupName = "YourGroupName"
+
+# מקבל את ה-Distinguished Name של הקבוצה
+$group = Get-ADGroup -Identity $groupName
+$groupDN = $group.DistinguishedName
+
+# מקבל את רשימת ה-ACL (Access Control List) על הקבוצה
+$acl = Get-ACL -Path "AD:\$groupDN"
+
+# מציג משתמשים וקבוצות עם הרשאת Full Control
+$acl.Access | Where-Object { $_.ActiveDirectoryRights -eq 'GenericAll' } | ForEach-Object {
+    [PSCustomObject]@{
+        Identity   = $_.IdentityReference
+        Rights     = $_.ActiveDirectoryRights
+        AccessType = $_.AccessControlType
+    }
+}
+
+
+
+
 
 from scapy.all import *
 import time
