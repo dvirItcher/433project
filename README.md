@@ -1,55 +1,65 @@
-To send a ping from one virtual machine (VM) running Windows 10 to another, follow these steps:
+Blocking only PsExec packets specifically can be challenging because PsExec, part of the Sysinternals Suite, uses legitimate network protocols (SMB) for remote administration. However, you can focus on identifying and blocking its unique behavior. Here's a step-by-step approach:
 
 ---
 
-### 1. **Ensure Both VMs Are on the Same Network**
-   - Check the network configuration of your virtual machines. Depending on the hypervisor (e.g., VirtualBox, VMware, Hyper-V), ensure both VMs are configured to be on the same virtual network.
-     - **NAT Network**: Machines share the host’s IP, but may not be directly reachable.
-     - **Bridged Network**: VMs are directly connected to the host’s network and can communicate with each other.
-     - **Host-Only Network**: VMs can communicate only with each other and the host.
-
-   **For VirtualBox**:
-   - Go to the VM settings > `Network`.
-   - Select `Adapter 1` > `Attached to: Bridged Adapter` or `Host-Only Adapter`.
-
-   **For VMware**:
-   - Go to VM settings > `Network Adapter`.
-   - Choose `Bridged` or `Host-Only`.
+### **1. Understand PsExec Communication**
+- **Default Protocol:** SMB (TCP port 445).
+- **Key Artifact:** PsExec uses a service (`PSEXESVC`) that it uploads to the target machine during execution.
+- **Traffic Pattern:** It sends an executable file to the target machine and communicates with the created service.
 
 ---
 
-### 2. **Find the IP Address of Each VM**
-   - On each VM, open Command Prompt and run:
-     ```cmd
-     ipconfig
+### **2. Methods to Block PsExec Traffic**
+
+#### **A. Use a Firewall**
+- Block traffic based on:
+  - **SMB Traffic:** If SMB isn't needed for certain hosts, block TCP port 445.
+  - **Process-specific Rules:** Some advanced firewalls (like Palo Alto or Cisco) allow blocking based on specific executables or processes.
+
+#### **B. Detect and Block PsExec Service (Deep Packet Inspection)**
+1. **DPI (Deep Packet Inspection):** Use a firewall or IDS/IPS (e.g., Snort, Suricata) that inspects SMB traffic for the keyword `PSEXESVC` in packets.
+2. Create a custom signature for PsExec:
+   - For **Snort**, add a rule:
+     ```plaintext
+     alert tcp any any -> any 445 (content:"PSEXESVC"; msg:"PsExec Traffic Detected"; sid:1000001; rev:1;)
      ```
-   - Note the **IPv4 Address** for each machine.
+   - Similar rules can be adapted for Suricata.
+
+#### **C. Prevent Uploading PsExec Files**
+- Monitor for `.exe` files being written via SMB.
+- Block or flag unusual SMB writes:
+  - Look for executable filenames like `PSEXESVC.exe`.
+
+#### **D. Disable SMBv1 (Optional)**
+- PsExec relies on SMB, and some versions may still attempt to use SMBv1. Disabling SMBv1 reduces attack surfaces but may affect older systems.
+  - **Windows Command:**
+    ```powershell
+    Disable-WindowsOptionalFeature -Online -FeatureName smb1protocol
+    ```
 
 ---
 
-### 3. **Enable Ping Requests on Both VMs**
-   By default, Windows 10 blocks ICMP (ping) requests via the firewall. You need to allow them:
-   1. Open **Windows Defender Firewall with Advanced Security**.
-   2. In the left pane, click **Inbound Rules**.
-   3. In the right pane, click **New Rule**.
-   4. Select **Custom** > Click **Next**.
-   5. Select **ICMPv4** > Click **Next**.
-   6. Choose when the rule applies (e.g., Domain, Private) > Click **Next**.
-   7. Name the rule (e.g., Allow Ping) > Click **Finish**.
+### **3. Monitor for PsExec Activity**
+- Use a SIEM or log analyzer (like Splunk) to look for:
+  - Authentication attempts with default admin accounts.
+  - Event IDs:
+    - **Windows Event ID 7045:** New service installed.
+    - **Event ID 4688:** Process creation (look for `psexec.exe`).
 
 ---
 
-### 4. **Test Connectivity**
-   - On one VM, open Command Prompt and use the `ping` command:
-     ```cmd
-     ping <IP address of the other VM>
-     ```
-   - Replace `<IP address of the other VM>` with the IPv4 address obtained earlier.
+### **4. Block by Behavior**
+- Use Endpoint Detection and Response (EDR) tools (e.g., CrowdStrike, SentinelOne) to block execution of `psexec.exe` based on:
+  - **Hash:** Prevent known PsExec binaries.
+  - **Behavior:** Flag remote code execution attempts.
 
 ---
 
-### Troubleshooting Tips:
-1. **Ping Fails**: Ensure the firewall rule is correctly applied and that both VMs are on the same subnet.
-2. **Network Configuration**: If using NAT, check if the VMs are isolated. Consider switching to a Bridged or Host-Only adapter.
-3. **VM Software Settings**: Some hypervisors have additional settings for inter-VM communication; ensure these are enabled.
+### **5. Alternative: Configure Group Policies**
+- Disable the ability to create new services remotely:
+  - Go to **Group Policy Management** → Computer Configuration → Windows Settings → Security Settings → Local Policies → Security Options.
+  - Set **"Network access: Remotely accessible registry paths and subpaths"** to block access.
 
+---
+
+By combining these methods, you can specifically block PsExec traffic without affecting legitimate SMB communication.
