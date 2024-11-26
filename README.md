@@ -1,65 +1,55 @@
-Blocking only PsExec packets specifically can be challenging because PsExec, part of the Sysinternals Suite, uses legitimate network protocols (SMB) for remote administration. However, you can focus on identifying and blocking its unique behavior. Here's a step-by-step approach:
+במערכות הפעלה, **user mode** ו-**kernel mode** הם שני מצבים (modes) שבהם המעבד יכול לפעול, והם חלק ממנגנון שמטרתו להגן על המערכת ולהבטיח את יציבותה. הנה ההסבר:  
 
 ---
 
-### **1. Understand PsExec Communication**
-- **Default Protocol:** SMB (TCP port 445).
-- **Key Artifact:** PsExec uses a service (`PSEXESVC`) that it uploads to the target machine during execution.
-- **Traffic Pattern:** It sends an executable file to the target machine and communicates with the created service.
+### 1. **מהם user mode ו-kernel mode?**
+- **User Mode (מצב משתמש):**
+  - זהו מצב מוגבל שבו תוכניות רגילות (כמו אפליקציות שמשתמש מריץ) פועלות.
+  - לתוכניות במצב זה אין גישה ישירה לחומרה של המחשב או למשאבים קריטיים של המערכת.
+  - כל גישה למשאבים כמו זיכרון, דיסק, או רשת חייבת לעבור דרך מערכת ההפעלה באמצעות קריאה למערכת (**System Call**).
+
+- **Kernel Mode (מצב ליבה):**
+  - זהו מצב שבו פועלת ליבת מערכת ההפעלה (kernel), ויש לה שליטה מלאה על החומרה והמערכת כולה.
+  - למערכת ההפעלה יש הרשאות לבצע פעולות כמו גישה ישירה לזיכרון, לתקני קלט/פלט (I/O), ולמעבד.
+  - אם קוד רץ במצב kernel וכולל באג או תקלה, הוא עלול לגרום לקריסה של כל המערכת.
 
 ---
 
-### **2. Methods to Block PsExec Traffic**
-
-#### **A. Use a Firewall**
-- Block traffic based on:
-  - **SMB Traffic:** If SMB isn't needed for certain hosts, block TCP port 445.
-  - **Process-specific Rules:** Some advanced firewalls (like Palo Alto or Cisco) allow blocking based on specific executables or processes.
-
-#### **B. Detect and Block PsExec Service (Deep Packet Inspection)**
-1. **DPI (Deep Packet Inspection):** Use a firewall or IDS/IPS (e.g., Snort, Suricata) that inspects SMB traffic for the keyword `PSEXESVC` in packets.
-2. Create a custom signature for PsExec:
-   - For **Snort**, add a rule:
-     ```plaintext
-     alert tcp any any -> any 445 (content:"PSEXESVC"; msg:"PsExec Traffic Detected"; sid:1000001; rev:1;)
-     ```
-   - Similar rules can be adapted for Suricata.
-
-#### **C. Prevent Uploading PsExec Files**
-- Monitor for `.exe` files being written via SMB.
-- Block or flag unusual SMB writes:
-  - Look for executable filenames like `PSEXESVC.exe`.
-
-#### **D. Disable SMBv1 (Optional)**
-- PsExec relies on SMB, and some versions may still attempt to use SMBv1. Disabling SMBv1 reduces attack surfaces but may affect older systems.
-  - **Windows Command:**
-    ```powershell
-    Disable-WindowsOptionalFeature -Online -FeatureName smb1protocol
-    ```
+### 2. **איך זה עובד?**
+- המעבר בין **user mode** ל-**kernel mode** מתבצע כאשר תוכנית משתמש מבצעת **System Call** או שיש אירוע (Interrupt) שמחייב את מערכת ההפעלה להתערב.
+- לדוגמה:
+  - כשאפליקציה רוצה לקרוא קובץ מהדיסק, היא מבקשת ממערכת ההפעלה לבצע זאת (System Call).
+  - המעבד עובר למצב **kernel**, מבצע את הפעולה, ואז חוזר למצב **user** לאחר סיום הפעולה.
 
 ---
 
-### **3. Monitor for PsExec Activity**
-- Use a SIEM or log analyzer (like Splunk) to look for:
-  - Authentication attempts with default admin accounts.
-  - Event IDs:
-    - **Windows Event ID 7045:** New service installed.
-    - **Event ID 4688:** Process creation (look for `psexec.exe`).
+### 3. **למה זה חשוב?**
+- **אבטחה:** הגבלת הגישה של תוכניות משתמש למערכת מונעת מהן לבצע פעולות שעלולות להזיק (במכוון או בטעות).
+- **יציבות:** אם יש באג בתוכנית במצב **user**, ההשפעה שלה מוגבלת, בעוד שבאג במצב **kernel** עלול לגרום לקריסה מוחלטת של המערכת.
+- **ביצועים:** מערכת ההפעלה יכולה לנהל את המשאבים בצורה יעילה יותר כשיש הבחנה ברורה בין user mode ל-kernel mode.
 
 ---
 
-### **4. Block by Behavior**
-- Use Endpoint Detection and Response (EDR) tools (e.g., CrowdStrike, SentinelOne) to block execution of `psexec.exe` based on:
-  - **Hash:** Prevent known PsExec binaries.
-  - **Behavior:** Flag remote code execution attempts.
+### 4. **איך זה מיושם?**
+- המעבד משתמש בדגלים מיוחדים או ב"מצבים" שייחודיים לו (כמו User/Supervisor במעבדי ARM, או Ring 0 ו-Ring 3 במעבדי x86) כדי לזהות באיזה מצב הוא פועל.
+- תוכניות רגילות רצות ב-Ring 3 (user mode), בעוד מערכת ההפעלה רצה ב-Ring 0 (kernel mode).
 
 ---
 
-### **5. Alternative: Configure Group Policies**
-- Disable the ability to create new services remotely:
-  - Go to **Group Policy Management** → Computer Configuration → Windows Settings → Security Settings → Local Policies → Security Options.
-  - Set **"Network access: Remotely accessible registry paths and subpaths"** to block access.
+### 5. **אתגרים במערכת:**
+- **מעבר בין המצבים (Context Switch):**  
+  המעבר בין user mode ל-kernel mode כרוך בהחלפת הקשר (context), מה שיכול להשפיע על הביצועים אם קורה בתדירות גבוהה.
+  
+- **Kernel Space ו-User Space:**  
+  הזיכרון מחולק לאזורים נפרדים:
+  - **Kernel Space:** אזור מוגן שמכיל את ליבת מערכת ההפעלה.
+  - **User Space:** האזור שבו פועלות תוכניות המשתמש.
 
 ---
 
-By combining these methods, you can specifically block PsExec traffic without affecting legitimate SMB communication.
+**דוגמה יומיומית:**
+כשאתה פותח קובץ עם תוכנה, היא רצה ב-user mode ומבקשת ממערכת ההפעלה (ב-kernel mode) לגשת לקובץ בדיסק. מערכת ההפעלה מבצעת את הפעולה, ומחזירה את התוצאה לתוכנית המשתמש.  
+
+אם משהו משתבש בתוכנית, רק היא תיסגר. אם משהו משתבש ב-kernel, כל המחשב עלול להיתקע. 
+
+זהו חלק מרכזי בתכנון של מערכות הפעלה מודרניות.
