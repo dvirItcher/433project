@@ -132,3 +132,18 @@ Let me know if you need clarification on any part!
 
 
 
+#!/bin/bash
+
+file="file.txt"
+key="linux"
+key_length=${#key}
+
+# Extract the contents of the file
+while IFS= read -r line; do
+  # Strip the key prefix from each line
+  value=${line:$key_length}
+  # Append the character to the reconstructed string
+  reconstructed_a+="$value"
+done < "$file"
+
+echo "Reconstructed a: $reconstructed_a"
