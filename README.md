@@ -1,25 +1,34 @@
-Good morning! Yes, I can help you search for RDP-related logs in Elasticsearch. Here’s how you can structure your query, depending on the data fields and logging format you're using. 
+To search for all **CLI logs that contain an IP address** in Elasticsearch, you can use a query that matches logs from command-line activity and filters for valid IP patterns. Here's how:
 
-### 1. **Filter by Event ID (Windows Logs)**
-If you’re ingesting Windows Event Logs (via tools like Winlogbeat), RDP connections are typically associated with the following Event IDs:
-- **Event ID 4624**: Successful logon (look for RDP logons: Logon Type 10).
-- **Event ID 4648**: A logon was attempted with explicit credentials.
-- **Event ID 1024**: RDP session disconnected.
+---
 
-To query for these events:
+### **Query Explanation**
+1. **Command-Line Activity Logs**:
+   - Look for logs where the `process.name`, `event_data.CommandLine`, or similar fields contain command-line activity.
+   - Common fields include `message`, `process.command_line`, or `process.args`.
+
+2. **IP Address Detection**:
+   - Use a regular expression to match IP address patterns (`\b(?:\d{1,3}\.){3}\d{1,3}\b`).
+
+---
+
+### **Elasticsearch Query**
+#### CLI Logs with IP Address Regex Match
 ```json
 {
   "query": {
     "bool": {
       "must": [
         {
-          "term": {
-            "winlog.event_id": 4624
+          "exists": {
+            "field": "process.command_line"
           }
         },
         {
-          "term": {
-            "logon.type": 10
+          "regexp": {
+            "process.command_line": {
+              "value": "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
+            }
           }
         }
       ]
@@ -28,81 +37,66 @@ To query for these events:
 }
 ```
 
-### 2. **Search for "mstsc" or "rdp" in Logs**
-If you are unsure about specific fields or want to search for any occurrence of terms like `mstsc` or `rdp` in log messages:
-```json
-{
-  "query": {
-    "multi_match": {
-      "query": "mstsc rdp",
-      "fields": ["message", "*"],
-      "type": "phrase"
-    }
-  }
-}
+---
+
+### **Kibana Query**
+In Kibana, you can use the following:
 ```
-
-### 3. **Filter by Source IP or Target Host**
-If you're tracking RDP connection attempts:
-```json
-{
-  "query": {
-    "bool": {
-      "filter": [
-        {
-          "match_phrase": {
-            "source.ip": "192.168.x.x"
-          }
-        },
-        {
-          "match_phrase": {
-            "process.name": "mstsc.exe"
-          }
-        }
-      ]
-    }
-  }
-}
+process.command_line: /\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b/
 ```
-
-### 4. **Kibana Query Example**
-In Kibana's search bar, you can use a Lucene query like:
-```
-message: "mstsc" OR message: "rdp"
-```
-
-
-
-
-To search for **unsuccessful RDP connection attempts**, you can focus on specific Windows Event IDs related to failed logins. Below are the relevant IDs and how to query them in Elasticsearch.
 
 ---
 
-### **Relevant Event IDs for Failed RDP Connections**
-1. **Event ID 4625**: Failed login attempt.  
-   Look for `Logon Type = 10` (Remote Interactive Logon via RDP).
-   
-2. **Event ID 1026**: Disconnection from an RDP session due to authentication failure.
+### **Adjust for Your Log Fields**
+If your CLI logs are stored in a different field (e.g., `message` or `event_data.CommandLine`), replace `process.command_line` with the appropriate field:
+- For logs in `message`:
+  ```json
+  {
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "exists": {
+              "field": "message"
+            }
+          },
+          {
+            "regexp": {
+              "message": {
+                "value": "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+  ```
 
 ---
 
-### **Elasticsearch Query Example**
-Here’s a query to find failed RDP logins:
-
-#### Query for `4625` with `Logon Type = 10`
+### **Include Specific Hosts or Processes (Optional)**
+To narrow it down to specific hosts or CLI tools:
 ```json
 {
   "query": {
     "bool": {
       "must": [
         {
-          "term": {
-            "winlog.event_id": 4625
+          "exists": {
+            "field": "process.command_line"
+          }
+        },
+        {
+          "regexp": {
+            "process.command_line": {
+              "value": "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
+            }
           }
         },
         {
           "term": {
-            "logon.type": 10
+            "host.name": "your-hostname"
           }
         }
       ]
@@ -113,27 +107,10 @@ Here’s a query to find failed RDP logins:
 
 ---
 
-#### Query for Disconnections (`Event ID 1026`)
-```json
-{
-  "query": {
-    "term": {
-      "winlog.event_id": 1026
-    }
-  }
-}
+### **IP Pattern Note**
+This query matches IPv4 addresses. If you need to include IPv6, adjust the regex:
+```
+(?:\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b|\\b[a-fA-F0-9:]+\\b)
 ```
 
----
-
-### **Kibana Query for Unsuccessful Attempts**
-In the Kibana search bar, you can use:
-```
-winlog.event_id: 4625 AND log
-
-### 5. **Check Beats Configurations**
-If you're using tools like Filebeat or Winlogbeat to collect logs:
-- Ensure your `filebeat.yml` or `winlogbeat.yml` is configured to capture relevant event types or keywords related to RDP activity.
-- Verify which fields are being indexed in Elasticsearch to refine your queries.
-
-Let me know if you'd like help customizing these queries further!
+Let me know if you need further assistance tailoring this to your logs!
