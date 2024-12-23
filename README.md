@@ -71,6 +71,66 @@ In Kibana's search bar, you can use a Lucene query like:
 message: "mstsc" OR message: "rdp"
 ```
 
+
+
+
+To search for **unsuccessful RDP connection attempts**, you can focus on specific Windows Event IDs related to failed logins. Below are the relevant IDs and how to query them in Elasticsearch.
+
+---
+
+### **Relevant Event IDs for Failed RDP Connections**
+1. **Event ID 4625**: Failed login attempt.  
+   Look for `Logon Type = 10` (Remote Interactive Logon via RDP).
+   
+2. **Event ID 1026**: Disconnection from an RDP session due to authentication failure.
+
+---
+
+### **Elasticsearch Query Example**
+Here’s a query to find failed RDP logins:
+
+#### Query for `4625` with `Logon Type = 10`
+```json
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "winlog.event_id": 4625
+          }
+        },
+        {
+          "term": {
+            "logon.type": 10
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+#### Query for Disconnections (`Event ID 1026`)
+```json
+{
+  "query": {
+    "term": {
+      "winlog.event_id": 1026
+    }
+  }
+}
+```
+
+---
+
+### **Kibana Query for Unsuccessful Attempts**
+In the Kibana search bar, you can use:
+```
+winlog.event_id: 4625 AND log
+
 ### 5. **Check Beats Configurations**
 If you're using tools like Filebeat or Winlogbeat to collect logs:
 - Ensure your `filebeat.yml` or `winlogbeat.yml` is configured to capture relevant event types or keywords related to RDP activity.
