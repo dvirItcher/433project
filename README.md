@@ -1,116 +1,77 @@
-To search for all **CLI logs that contain an IP address** in Elasticsearch, you can use a query that matches logs from command-line activity and filters for valid IP patterns. Here's how:
+Detecting a **Kerberoasting attack** involves analyzing authentication logs for specific patterns indicative of suspicious behavior. Kerberoasting is an attack targeting service accounts in Active Directory by requesting service tickets (TGS) and extracting their encrypted passwords for offline cracking.
 
----
+### Steps to Create Detection Logic
 
-### **Query Explanation**
-1. **Command-Line Activity Logs**:
-   - Look for logs where the `process.name`, `event_data.CommandLine`, or similar fields contain command-line activity.
-   - Common fields include `message`, `process.command_line`, or `process.args`.
+1. **Log Sources**
+   - Active Directory (AD) Security Event Logs
+   - SIEM (Security Information and Event Management) system
+   - Network monitoring tools
 
-2. **IP Address Detection**:
-   - Use a regular expression to match IP address patterns (`\b(?:\d{1,3}\.){3}\d{1,3}\b`).
+2. **Key Indicators to Look For**
+   - **Event ID 4769** (An account was granted a Kerberos service ticket) in Windows Security Logs:
+     - Look for unusual TGS requests, especially for service accounts.
+   - Large number of service ticket requests in a short time frame.
+   - Requests from non-standard or unauthorized tools.
+   - Requests for high-privilege accounts (e.g., `krbtgt` or administrative accounts).
+   - Suspicious source systems or IPs (e.g., non-domain joined systems).
+   - Anomalies in the Service Name or SPN (Service Principal Name) being requested.
 
----
+3. **Detection Logic**
+   Use the following logic to create queries or rules in your SIEM:
 
-### **Elasticsearch Query**
-#### CLI Logs with IP Address Regex Match
-```json
-{
-  "query": {
-    "bool": {
-      "must": [
-        {
-          "exists": {
-            "field": "process.command_line"
-          }
-        },
-        {
-          "regexp": {
-            "process.command_line": {
-              "value": "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
+#### Pseudocode for Detection Logic
+```sql
+SELECT 
+    SourceIPAddress, 
+    TargetAccountName, 
+    ServiceName, 
+    EventTime 
+FROM 
+    SecurityLogs 
+WHERE 
+    EventID = 4769
+    AND EncryptionType IN ('RC4-HMAC', 'AES256-CTS-HMAC-SHA1-96') -- Common encryption types used
+    AND (
+        -- High frequency of requests from a single source
+        COUNT(*) OVER (PARTITION BY SourceIPAddress, TargetAccountName, ServiceName, DATE_TRUNC('hour', EventTime)) > Threshold
+        OR
+        -- High-privilege accounts or sensitive service names
+        TargetAccountName IN ('krbtgt', 'Administrator', 'DomainAdmin')
+        OR
+        ServiceName LIKE '%sensitive%'
+    )
+ORDER BY 
+    EventTime DESC;
 ```
 
----
+4. **Threshold and Baselines**
+   - Define thresholds based on normal network behavior.
+   - For example, more than 5 TGS requests per minute from the same source or targeting the same account could trigger an alert.
+   - Compare activity against historical baselines.
 
-### **Kibana Query**
-In Kibana, you can use the following:
-```
-process.command_line: /\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b/
-```
+5. **Advanced Correlation**
+   - Correlate with Event ID **4624** (Logon event) to see if the source IP has logged into multiple accounts unusually.
+   - Cross-reference with **network logs** for signs of unusual traffic (e.g., tools like `Rubeus` or `Impacket` often generate unique patterns).
 
----
+6. **Response**
+   - Trigger an alert in your SIEM or SOAR system.
+   - Perform automated actions, like isolating the machine or blocking the source IP.
 
-### **Adjust for Your Log Fields**
-If your CLI logs are stored in a different field (e.g., `message` or `event_data.CommandLine`), replace `process.command_line` with the appropriate field:
-- For logs in `message`:
-  ```json
-  {
-    "query": {
-      "bool": {
-        "must": [
-          {
-            "exists": {
-              "field": "message"
-            }
-          },
-          {
-            "regexp": {
-              "message": {
-                "value": "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-  ```
-
----
-
-### **Include Specific Hosts or Processes (Optional)**
-To narrow it down to specific hosts or CLI tools:
-```json
-{
-  "query": {
-    "bool": {
-      "must": [
-        {
-          "exists": {
-            "field": "process.command_line"
-          }
-        },
-        {
-          "regexp": {
-            "process.command_line": {
-              "value": "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
-            }
-          }
-        },
-        {
-          "term": {
-            "host.name": "your-hostname"
-          }
-        }
-      ]
-    }
-  }
-}
+### Example in Splunk
+```spl
+index=security_logs
+sourcetype=windows
+EventCode=4769
+| stats count by Source_Workstation, Target_Account_Name, Service_Name, Encryption_Type
+| where count > 5 AND Encryption_Type IN ("0x17", "0x12")  # RC4 or AES encryption
+| table Source_Workstation, Target_Account_Name, Service_Name, count
 ```
 
----
-
-### **IP Pattern Note**
-This query matches IPv4 addresses. If you need to include IPv6, adjust the regex:
+### Example in Elastic (EQL)
+```eql
+sequence by host.id
+  [authentication where event.action == "kerberos_request" and event.outcome == "success"]
+  [authentication where target.service.name in ("krbtgt", "Administrator")]
 ```
-(?:\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b|\\b[a-fA-F0-9:]+\\b)
-```
 
-Let me know if you need further assistance tailoring this to your logs!
+By implementing this logic, you can effectively detect and respond to potential Kerberoasting attacks.
