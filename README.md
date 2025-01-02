@@ -240,3 +240,25 @@ Here’s an outline of how the exploit could work:
 - Always enforce strict driver validation and apply principle of least privilege.
 
 Let me know if you'd like a deeper dive into a specific component, such as crafting payloads or setting up a lab environment to test it!
+
+
+
+
+
+
+
+
+The **PrintNightmare** vulnerability (CVE-2021-34527) has been exploited by various threat actors in real-world attacks. Notable instances include:
+
+1. **Magniber Ransomware Campaign**:
+   - **Details**: In July 2021, the Magniber ransomware group leveraged the PrintNightmare vulnerability to compromise systems, primarily targeting victims in South Korea. By exploiting unpatched systems, they deployed ransomware to encrypt files and demand payment. 
+
+2. **Vice Society Ransomware Attacks**:
+   - **Details**: The Vice Society ransomware group incorporated PrintNightmare into their attack strategies. By exploiting this vulnerability, they gained elevated privileges on compromised systems, facilitating the deployment of ransomware payloads. 
+
+3. **Eskenazi Health Incident**:
+   - **Details**: On August 4, 2021, Eskenazi Health experienced an attempted ransomware attack, leading the hospital to shut down its computer networks and emergency room. While the specific exploitation of PrintNightmare in this incident is not detailed, it underscores the broader impact of ransomware attacks during that period. 
+
+These incidents highlight the critical importance of promptly applying security patches and implementing mitigations to protect against vulnerabilities like PrintNightmare.
+
+For a comprehensive understanding of PrintNightmare and its implications, you can refer to the detailed analysis provided by Sygnia.  
