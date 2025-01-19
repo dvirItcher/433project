@@ -1,66 +1,93 @@
-To test the SQL connection when the SQL server is on a different machine, you can follow these steps:
+If the McAfee Pre-Installation Auditor (PIA) showed no warnings or errors, but the ePO setup is still rolling back, the issue might be more nuanced. Here are additional steps to troubleshoot and resolve the problem:
 
 ---
 
-### **1. Ensure Network Connectivity**
-- **Ping the SQL Server**: From the ePO server, open Command Prompt and type:
-  ```cmd
-  ping <SQL_Server_IP_or_Hostname>
+### **1. Review Setup Log Files in Detail**
+- Go to the ePO installation logs:
   ```
-  Ensure you receive a response. If not, there may be network or DNS issues.
+  %temp%\McAfeeLogs
+  ```
+- Look specifically in the **`epo-install.log`** or **`orion.log`** for lines such as:
+  - `ERROR`
+  - `FATAL`
+  - `Rollback initiated`
+- Share the key log snippets if you're unsure how to interpret them.
 
 ---
 
-### **2. Check SQL Server Configuration**
-- **Allow Remote Connections**:
-  - On the SQL server, open **SQL Server Management Studio (SSMS)**.
-  - Right-click the server instance, select **Properties** > **Connections**.
-  - Ensure **Allow remote connections to this server** is checked.
-  
-- **Verify Protocols**:
-  - Open **SQL Server Configuration Manager** on the SQL server.
-  - Under **SQL Server Network Configuration**, ensure **TCP/IP** is enabled.
-  
-- **Firewall Rules**:
-  - Ensure the SQL server's firewall allows incoming connections on the SQL Server port (default: **1433**).
-  - Add rules for **sqlservr.exe** if necessary.
+### **2. Check Windows Event Viewer**
+- Open Event Viewer:
+  ```
+  Start > Search "Event Viewer" > Windows Logs > Application
+  ```
+- Look for entries related to the installer during the time of the rollback.
+  - Errors from `MsiInstaller` or `.NET` are common culprits.
 
 ---
 
-### **3. Test SQL Connectivity Using UDL File**
-1. **Create a UDL File**:
-   - On the ePO server, create a new text file and rename it to `test.udl` (ensure file extensions are visible).
-   - Double-click the `test.udl` file to open the **Data Link Properties** window.
-2. **Configure the Connection**:
-   - On the **Provider** tab, select **Microsoft OLE DB Provider for SQL Server**.
-   - On the **Connection** tab:
-     - Enter the **SQL Server name** (e.g., `SQLServerName\InstanceName` or just `SQLServerName` if default instance).
-     - Choose authentication type (Windows or SQL Server authentication).
-     - Specify a database name.
-   - Click **Test Connection**.
-3. **Check Results**:
-   - If successful, your SQL connection is working.
-   - If not, note the error message for troubleshooting.
+### **3. Verify SQL Database Settings**
+- Ensure the database:
+  - Is **SQL Server Standard/Enterprise** (Express isn't supported for production).
+  - Has **Mixed Mode Authentication** enabled.
+  - Accepts connections from the ePO server (check with SQL Management Studio).
+- Test the SQL connection using the same credentials provided during the setup.
 
 ---
 
-### **4. Test Connection via Command Line**
-Use **sqlcmd** (built into SQL Server tools) to test:
-1. Open Command Prompt on the ePO server.
-2. Type the following:
-   ```cmd
-   sqlcmd -S <SQL_Server_IP_or_Hostname> -U <SQL_Username> -P <SQL_Password>
-   ```
-   Replace `<SQL_Server_IP_or_Hostname>`, `<SQL_Username>`, and `<SQL_Password>` with your actual SQL server details.
-3. If connected, you'll see a `1>` prompt. Type `exit` to quit.
+### **4. Clear Temporary Files**
+- Clear remnants of previous installations:
+  1. Delete everything in the `%temp%` folder.
+  2. Remove the partially created installation directory (e.g., `C:\Program Files\McAfee\ePolicy Orchestrator`).
 
 ---
 
-### **5. Verify Database Permissions**
-Ensure the SQL account used by ePO:
-- Has **db_owner** permissions on the ePO database.
-- Has the necessary permissions to create new databases if setting up a fresh instance.
+### **5. Confirm .NET Framework Compatibility**
+- Ensure the required .NET Framework version is installed (ePO often requires specific versions like **.NET 4.7.x** or higher).
+- Use the following to repair or reinstall:
+  - `DISM /Online /Cleanup-Image /RestoreHealth`
+  - `sfc /scannow`
 
 ---
 
-Let me know if you run into issues or need clarification!
+### **6. Check for Third-Party Interference**
+- Temporarily disable:
+  - Antivirus/Endpoint Protection software.
+  - Group Policy restrictions.
+- Ensure no conflicting services (e.g., older McAfee services or other security software) are running.
+
+---
+
+### **7. Use a Fresh SQL Database Instance**
+- If previous installation attempts partially configured the database, it could cause rollbacks.
+  - Delete the existing database or create a new, clean instance.
+
+---
+
+### **8. Manually Create Required Directories**
+- Sometimes, the installer fails due to permission issues or missing directories.
+- Pre-create these directories (if applicable) and assign **Full Control** to the installation user:
+  - `C:\Program Files\McAfee\ePolicy Orchestrator`
+  - `C:\ProgramData\McAfee`
+
+---
+
+### **9. Reinstall Prerequisites**
+Reinstall critical components like:
+- Microsoft Visual C++ Redistributables (ensure both x86 and x64 versions are installed for 2010, 2013, 2015, 2019).
+- Ensure the Windows Installer service is running:
+  ```
+  net start msiserver
+  ```
+
+---
+
+### **10. Advanced Debugging with Verbose MSI Logs**
+- Run the installer with verbose logging:
+  ```
+  msiexec /i "ePOSetup.msi" /L*v "C:\epo-verbose-log.txt"
+  ```
+- This creates a detailed log (`epo-verbose-log.txt`) that may pinpoint the exact step causing the rollback.
+
+---
+
+If these steps don’t resolve the issue, provide the relevant log excerpts, and I can help analyze them further!
