@@ -91,3 +91,64 @@ Reinstall critical components like:
 ---
 
 If these steps don’t resolve the issue, provide the relevant log excerpts, and I can help analyze them further!
+
+
+
+
+
+
+
+You can check your .NET Framework version on Windows using any of the following methods:
+
+---
+
+### **Method 1: Check via Registry**
+1. Press **Win + R**, type `regedit`, and press Enter to open the **Registry Editor**.
+2. Navigate to the following path:
+   ```
+   HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full
+   ```
+3. Look for the **`Release`** key on the right-hand side. Its value corresponds to the installed .NET Framework version.
+
+#### Use the following table to interpret the value:
+| Release Value   | .NET Framework Version |
+|-----------------|-------------------------|
+| 528040          | 4.8                    |
+| 461808          | 4.7.2                  |
+| 461308          | 4.7.1                  |
+| 460798          | 4.7                    |
+| 394802          | 4.6.2                  |
+| 393295          | 4.6.1                  |
+| 393273          | 4.6                    |
+
+For ePO, you generally need **4.7.x or later**.
+
+---
+
+### **Method 2: Check via Command Prompt**
+1. Open **Command Prompt** with administrative privileges.
+2. Run the following command:
+   ```
+   reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release
+   ```
+3. The output will display the `Release` value, which you can interpret using the table above.
+
+---
+
+### **Method 3: Use PowerShell**
+1. Open **PowerShell**.
+2. Run the following script:
+   ```powershell
+   Get-ChildItem "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" | Get-ItemPropertyValue -Name Release
+   ```
+3. This will output the `Release` value for the .NET Framework installed.
+
+---
+
+### **Method 4: Check via Control Panel**
+1. Open **Control Panel** > **Programs and Features** > **Turn Windows features on or off**.
+2. Look for **.NET Framework 4.x** in the list. If it’s checked, it's installed.
+
+---
+
+If your version is outdated, download and install the latest version of the .NET Framework from the official [Microsoft .NET Download page](https://dotnet.microsoft.com/download/dotnet-framework).
