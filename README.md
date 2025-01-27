@@ -1,74 +1,81 @@
-$disk = "\\.\PhysicalDrive0"
-$stream = [System.IO.File]::Open($disk, 'Open', 'Read', 'None')
-$buffer = New-Object byte[] 512
-$stream.Read($buffer, 0, 512)
-$stream.Close()
-[System.Text.Encoding]::ASCII.GetString($buffer)
-
-
-
-
-
-
-
-
-
-Sysmon (System Monitor), a part of the Microsoft Sysinternals suite, provides detailed logs of system activities for monitoring and security purposes. Logs 19, 20, and 21 are related to **WMI (Windows Management Instrumentation) activities**. Here's a breakdown of each:
+The **UAC (User Account Control) bypass using registry techniques** is a method attackers use to escalate privileges on a Windows system without triggering the UAC prompt. It involves manipulating the Windows Registry to exploit legitimate processes that run with higher privileges. Here’s a detailed explanation:
 
 ---
 
-### **Event ID 19: WmiEventFilter activity detected**
-- **Purpose**: Logs when a new WMI event filter is registered.
-- **What it Tracks**:  
-  - WMI event filters are conditions that trigger WMI events.
-  - Example: A filter might specify "log an event when a file is deleted."
-- **Fields**:
-  - **RuleName**: Custom name for the Sysmon rule that matched.
-  - **EventNamespace**: The WMI namespace where the filter was registered.
-  - **Name**: Name of the WMI filter.
-  - **Query**: WQL (WMI Query Language) used to define the filter.
+### **UAC Bypass Using Registry Technique**
+
+1. **Understanding UAC and Privilege Escalation**:
+   - **UAC** is a security feature in Windows that prevents unauthorized changes by prompting for administrator approval when an application requires elevated privileges.
+   - Attackers bypass UAC by exploiting trusted processes that are whitelisted by UAC to execute malicious code without a prompt.
+
+2. **Registry-Based UAC Bypass**:
+   - Some legitimate processes in Windows (e.g., `fodhelper.exe`, `eventvwr.exe`) automatically elevate privileges when launched. These processes look for specific registry keys to load configurations or commands.
+   - Attackers manipulate these registry keys to execute malicious payloads with elevated privileges.
+   - Example:
+     - An attacker sets malicious commands in a registry key like `HKCU\Software\Classes\ms-settings\Shell\Open\command`.
+     - When a trusted process such as `fodhelper.exe` is launched, it reads the modified registry key and executes the attacker's command with elevated privileges.
+
+3. **Commonly Exploited Registry Paths**:
+   - `HKCU\Software\Classes\ms-settings\Shell\Open\command`
+   - `HKCU\Software\Classes\exefile\shell\open\command`
+   - `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+
+4. **Why It Works**:
+   - The trusted processes do not validate the integrity of the registry values they read.
+   - UAC whitelists these processes, so the system automatically grants them elevated privileges.
 
 ---
 
-### **Event ID 20: WmiEventConsumer activity detected**
-- **Purpose**: Logs when a new WMI event consumer is registered.
-- **What it Tracks**:
-  - Consumers act on WMI events, such as executing scripts or commands when an event occurs.
-  - Example: Run a script when a file is modified.
-- **Fields**:
-  - **RuleName**: Custom name for the Sysmon rule that matched.
-  - **ConsumerName**: Name of the WMI consumer.
-  - **ConsumerType**: Type of the consumer (e.g., CommandLineEventConsumer, ActiveScriptEventConsumer).
-  - **Destination**: Action performed by the consumer (e.g., running a script).
+### **Sysmon Event IDs and Logging UAC Bypass**
+
+**Sysmon** (System Monitor) is a Windows system monitoring tool from Microsoft’s Sysinternals Suite. It provides detailed logging for security monitoring. The relevant Sysmon Event IDs for detecting registry-based UAC bypass are:
+
+1. **Event ID 12: Registry Object Created or Deleted**
+   - Logs the creation or deletion of registry keys.
+   - This can detect the addition of malicious registry keys like `HKCU\Software\Classes\ms-settings\Shell\Open\command`.
+
+2. **Event ID 13: Registry Value Set**
+   - Logs changes to registry values.
+   - Attackers modify specific registry keys/values to insert malicious commands, and this event captures such changes.
+
+3. **Event ID 14: Registry Object Renamed**
+   - Logs when registry keys are renamed.
+   - Some bypass techniques involve renaming registry keys to activate payloads.
 
 ---
 
-### **Event ID 21: WmiEventConsumerToFilter activity detected**
-- **Purpose**: Logs when a filter-to-consumer binding is created.
-- **What it Tracks**:
-  - A filter-to-consumer binding links a WMI event filter with an event consumer.
-  - Example: A filter detects when a file is deleted, and the consumer runs a script; this binding links them together.
-- **Fields**:
-  - **RuleName**: Custom name for the Sysmon rule that matched.
-  - **Consumer**: Name of the consumer involved in the binding.
-  - **Filter**: Name of the filter involved in the binding.
+### **Why These Events Are Useful**
+
+- **Visibility**: Sysmon provides granular visibility into registry changes, including:
+  - The exact key or value being modified.
+  - The process responsible for the modification.
+  - The timestamp of the activity.
+
+- **Correlation with Legitimate Processes**: Security analysts can correlate registry changes (e.g., changes to `ms-settings`) with the execution of processes like `fodhelper.exe`.
+
+- **Indicators of Compromise (IOCs)**:
+  - Sudden creation or modification of keys linked to trusted processes.
+  - Malicious command strings in registry values.
 
 ---
 
-### **Key Differences**
-1. **Event ID 19**: Focuses on the **creation of WMI event filters** (conditions).
-2. **Event ID 20**: Focuses on the **creation of WMI event consumers** (actions).
-3. **Event ID 21**: Tracks **bindings between filters and consumers** (links conditions to actions).
+### **Mitigation and Detection**
+
+1. **Monitoring with Sysmon**:
+   - Enable Sysmon with a well-configured XML configuration file to log registry changes.
+   - Focus on sensitive keys like `HKCU\Software\Classes\ms-settings\Shell\Open\command`.
+
+2. **Analyzing Logs**:
+   - Use a SIEM (e.g., Splunk, ELK) to aggregate and analyze Sysmon logs.
+   - Set alerts for suspicious registry changes.
+
+3. **Preventive Measures**:
+   - Restrict write access to sensitive registry keys.
+   - Enforce application whitelisting using tools like Windows Defender Application Control (WDAC).
+
+4. **Regular Updates**:
+   - Keep Windows and Sysinternals tools updated to mitigate newly discovered bypass techniques.
 
 ---
 
-### **Why This Matters**
-- **Security Implications**:
-  - Attackers often abuse WMI to maintain persistence or execute malicious activities (e.g., living-off-the-land attacks).
-  - These events help detect suspicious WMI-based behavior.
-- **Example Use Case**:
-  - Event ID 19 shows a filter querying for file deletions.
-  - Event ID 20 logs a consumer that runs a script.
-  - Event ID 21 shows that the filter and consumer are linked, indicating potential malicious automation.
-
-Let me know if you'd like examples or help interpreting specific logs!
+By monitoring **Sysmon Event IDs 12-14**, you can effectively detect and analyze UAC bypass attempts that use registry manipulation techniques.
