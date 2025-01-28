@@ -1,109 +1,88 @@
-Here is a more comprehensive list of **common Sysmon registry values** and their purposes, which are found under the **Sysmon service registry key**:
+The `checkRevocation` value in Sysmon is a **boolean registry setting** that controls whether **certificate revocation checking** is enabled for Sysmon when validating digitally signed binaries. 
 
-### **Registry Path**
+### Purpose of `checkRevocation`
+When Sysmon processes events, it may need to verify the digital signatures of binaries or executables involved. This verification ensures that:
+- The file is signed by a trusted entity.
+- The certificate used for the signature is still valid and hasn't been revoked by the issuing certificate authority (CA).
+
+The `checkRevocation` setting determines if Sysmon should perform this additional step of checking the **Certificate Revocation List (CRL)** or using **Online Certificate Status Protocol (OCSP)** during validation.
+
+---
+
+### Where `checkRevocation` is Found
+The `checkRevocation` setting is usually stored in the Sysmon configuration under the following registry key:
+
 ```
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Sysmon
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Sysmon\Config
 ```
 
----
-
-### **Subkeys and Values**
-1. **`Config` Subkey**
-   This is the most critical subkey that contains configuration details for Sysmon.
-
-   **Values:**
-   - **`Rules`** (Binary)  
-     Stores the active Sysmon configuration in binary format. This is the content of the XML configuration file uploaded to Sysmon.  
-     - Updated whenever you reload the configuration using `sysmon.exe -c`.
-     - Cannot be directly edited without causing issues—always use the Sysmon CLI.
-
-   - **`SchemaVersion`** (DWORD)  
-     Specifies the Sysmon configuration schema version.  
-     - Example: `13` for Sysmon schema version 13.
-
-   - **`ConfigurationHash`** (Binary)  
-     A hash of the currently loaded configuration file to detect changes or tampering.
+It is part of the operational settings that influence how Sysmon processes and logs events.
 
 ---
 
-2. **Root Values**
-   These values directly under the `Sysmon` key determine service and operational settings.
+### Possible Values
+- **`0` (Disabled):**  
+  Revocation checking is turned off. Sysmon will only verify if a binary is signed, but it won't check whether the signing certificate is revoked.
 
-   **Common Values:**
-   - **`DisplayName`** (REG_SZ)  
-     The display name of the Sysmon service.  
-     - Default: "Sysmon - System Monitor".
-
-   - **`ErrorControl`** (DWORD)  
-     Determines the error handling if the Sysmon service fails to start:  
-     - `0x0`: Ignore.  
-     - `0x1`: Display a warning.  
-     - `0x3`: Fail critical system startup.
-
-   - **`ImagePath`** (REG_EXPAND_SZ)  
-     The file path to the Sysmon executable.  
-     - Default: `%SystemRoot%\Sysmon64.exe`.
-
-   - **`ObjectName`** (REG_SZ)  
-     The name of the account Sysmon runs under.  
-     - Default: `LocalSystem`.
-
-   - **`Start`** (DWORD)  
-     The startup type of the Sysmon service:  
-     - `0x2`: Automatic start.  
-     - `0x3`: Manual start.
-
-   - **`Type`** (DWORD)  
-     The service type for Sysmon. Default: `0x10` (indicates a file system driver).
-
-   - **`DriverState`** (DWORD)  
-     Represents the current state of the Sysmon driver:  
-     - `0`: Stopped.  
-     - `1`: Running.
+- **`1` (Enabled):**  
+  Revocation checking is enabled. Sysmon will validate the signature and also check if the signing certificate has been revoked.
 
 ---
 
-3. **Event Log Configuration**
-   These settings configure the Sysmon logs in the Windows Event Viewer.
+### Why `checkRevocation` Matters
+1. **Enhanced Security:**  
+   Enabling `checkRevocation` ensures Sysmon can detect binaries with invalid or revoked certificates, which may indicate tampering or malicious intent.
 
-   **Registry Path:**
+2. **Performance Considerations:**  
+   - Enabling this option may introduce **performance overhead** because revocation checks often require contacting external servers (CRL distribution points or OCSP responders).
+   - If the system has limited internet connectivity or the CA servers are unreachable, revocation checks may fail, resulting in delays or incomplete validation.
+
+3. **Use Case Scenarios:**
+   - **Enabled (`1`)** for high-security environments where signature validation is critical, and external connections for CRL/OCSP are reliable.
+   - **Disabled (`0`)** for isolated systems or environments where performance is prioritized over signature revocation checks.
+
+---
+
+### How to Change `checkRevocation`
+To modify this value, use the Sysmon command-line interface to reload the configuration or adjust it in the registry:
+
+#### Using Sysmon CLI:
+If you are updating your Sysmon configuration file (XML), include this option:
+
+```xml
+<Sysmon>
+    <Options>
+        <CheckRevocation>true</CheckRevocation>
+    </Options>
+</Sysmon>
+```
+
+Apply the updated configuration:
+```cmd
+sysmon.exe -c sysmonconfig.xml
+```
+
+#### Modifying the Registry Directly:
+If you need to adjust the registry value directly:
+1. Open **Regedit** and navigate to:
    ```
-   HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-Windows-Sysmon/Operational
+   HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Sysmon\Config
+   ```
+2. Look for the `checkRevocation` value.
+3. Set its data to:
+   - `0` (Disabled)
+   - `1` (Enabled)
+
+4. Restart the Sysmon service to apply changes:
+   ```cmd
+   net stop sysmon
+   net start sysmon
    ```
 
-   **Values:**
-   - **`Enabled`** (DWORD)  
-     Specifies if the Sysmon log channel is enabled:  
-     - `1`: Enabled.  
-     - `0`: Disabled.
-
-   - **`MaxSize`** (DWORD)  
-     The maximum size (in bytes) of the event log file.
-
-   - **`Retention`** (DWORD)  
-     Defines the retention policy:  
-     - `0`: Overwrite events as needed.  
-     - `1`: Retain events until explicitly cleared.
-
 ---
 
-4. **Performance and Debugging**
-   Sysmon also stores performance-related values under the `Sysmon` registry key.
+### Monitoring Impact of `checkRevocation`
+- **Event Logs:** Enabling `checkRevocation` may result in additional information being logged in the `Microsoft-Windows-Sysmon/Operational` channel if certificate issues are detected.
+- **Error Handling:** If the revocation check fails due to connectivity issues or other reasons, Sysmon typically logs the failure but continues processing the event.
 
-   **Common Values:**
-   - **`DebugFlags`** (DWORD)  
-     Used for debugging Sysmon (usually disabled).  
-     - Default: `0x0`.
-
-   - **`StateFlags`** (DWORD)  
-     Controls state-specific features of Sysmon.  
-     - Example: `0x1` for active state.
-
----
-
-### Notes:
-- Modifying the values under the `Sysmon` registry key manually is risky. Always use the official Sysmon CLI (`sysmon.exe`) to ensure consistent and valid configurations.
-- Regularly monitor the `Config` subkey to detect unauthorized changes (e.g., configuration tampering).
-- Use tools like `Regedit`, `reg query`, or PowerShell to inspect the registry settings.
-
-Let me know if you’d like assistance extracting or interpreting any specific value!
+Would you like further assistance enabling or testing this feature in Sysmon?
