@@ -1,87 +1,110 @@
-Yes! You need a **decoder** to extract `audit.key` from the raw audit logs before Wazuh can match your custom rule. Let’s go through **all steps, including decoding**.
+Let's go step by step again to fix this issue. Since other audit logs are working, the problem is likely with Wazuh's ability to recognize and forward your custom audit logs.
 
 ---
 
-## **🔹 Step 1: Enable Audit Logging on the Agent**
-> **On the agent**, install `auditd` (if not already installed):
+## **🔎 Step 1: Verify Audit Logs on the Agent**
+Run this on the **agent**:  
 ```bash
-sudo apt install auditd -y    # Ubuntu/Debian
-sudo yum install audit -y     # CentOS/RHEL
+sudo ausearch -k root_command --start today
 ```
-> **Add an Audit Rule to Log Root Commands:**
+✅ **Expected Output**:  
+```
+type=SYSCALL msg=audit(1690000000.123:456): key="root_command"
+```
+🔴 **If missing**, check if the audit rule is loaded:  
+```bash
+sudo auditctl -l | grep root_command
+```
+If it's not listed, re-add it:  
 ```bash
 sudo auditctl -a always,exit -F arch=b64 -F uid=0 -S execve -k root_command
 sudo auditctl -a always,exit -F arch=b32 -F uid=0 -S execve -k root_command
 ```
-> **Verify Rule is Active:**
+Then restart `auditd`:  
 ```bash
-sudo auditctl -l | grep root_command
-```
-✅ Expected output:
-```
--a always,exit -F arch=b64 -F uid=0 -S execve -k root_command
--a always,exit -F arch=b32 -F uid=0 -S execve -k root_command
+sudo systemctl restart auditd
 ```
 
 ---
 
-## **🔹 Step 2: Test Audit Logging**
-> **Run a root command to generate logs:**
+## **🔎 Step 2: Verify Wazuh Agent Reads Audit Logs**
+Run this on the **agent**:  
+```bash
+sudo tail -f /var/log/audit/audit.log | grep root_command
+```
+Then, in another terminal, run a root command:  
 ```bash
 sudo ls /root
 ```
-> **Check if `auditd` Captured It:**
+✅ **Expected Output**: A log entry containing `"key=root_command"`  
+
+🔴 **If missing**, check if Wazuh is reading `/var/log/audit/audit.log` by running:  
 ```bash
-sudo ausearch -k root_command --start today
+sudo tail -f /var/ossec/logs/ossec.log | grep audit
 ```
-✅ Expected output:
-```
-type=SYSCALL msg=audit(1672523674.934:1234): key="root_command"
-```
-🔴 **If no logs appear:**  
-- Check if `auditd` is running:
-  ```bash
-  sudo systemctl status auditd
-  ```
-- If inactive, start it:
-  ```bash
-  sudo systemctl start auditd
-  sudo systemctl enable auditd
-  ```
-
----
-
-## **🔹 Step 3: Configure Wazuh Agent to Monitor Audit Logs**
-> **On the agent, edit Wazuh config file:**
+If Wazuh is **not reading audit logs**, check the agent configuration:  
 ```bash
 sudo nano /var/ossec/etc/ossec.conf
 ```
-📌 **Add this inside `<localfile>`**:
+Ensure this section exists:  
 ```xml
 <localfile>
   <log_format>audit</log_format>
   <location>/var/log/audit/audit.log</location>
 </localfile>
 ```
-✅ **Restart the agent**:
+Then restart the agent:  
 ```bash
 sudo systemctl restart wazuh-agent
 ```
 
-> **Check if Wazuh Reads Audit Logs:**
+---
+
+## **🔎 Step 3: Check If the Manager Receives the Logs**
+Run this on the **manager**:  
 ```bash
-sudo tail -f /var/log/audit/audit.log
+sudo tail -f /var/ossec/logs/archives/archives.log | grep root_command
 ```
-- If logs are **missing**, go back to **Step 2**.
+Then, **run a root command on the agent**:  
+```bash
+sudo ls /root
+```
+✅ **Expected Output**: A log entry containing `"key=root_command"`
+
+🔴 **If missing**, check if the agent is active on the manager:  
+```bash
+sudo /var/ossec/bin/agent_control -l
+```
+If the agent is **disconnected**, restart it:  
+```bash
+sudo systemctl restart wazuh-agent
+```
 
 ---
 
-## **🔹 Step 4: Add a Custom Decoder on the Manager**
-> **On the manager, create a new decoder file:**
+## **🔎 Step 4: Test Wazuh's Decoding on the Manager**
+Run this on the **manager**:  
+```bash
+sudo /var/ossec/bin/ossec-logtest
+```
+Paste a sample audit log:
+```json
+{"audit.key":"root_command"}
+```
+✅ **Expected Output**:  
+```
+Rule ID: 100002 | Level: 15 | Root user executed a command
+```
+🔴 **If no rule matches, Wazuh is not decoding your logs correctly.**  
+
+---
+
+## **🔎 Step 5: Fix Decoders on the Manager**
+Edit the Wazuh decoder file:  
 ```bash
 sudo nano /var/ossec/etc/decoders/local_decoder.xml
 ```
-📌 **Paste this decoder:**
+Add this decoder:  
 ```xml
 <decoder name="auditd">
   <prematch>{"type":"SYSCALL"</prematch>
@@ -89,19 +112,19 @@ sudo nano /var/ossec/etc/decoders/local_decoder.xml
   <order>audit.key</order>
 </decoder>
 ```
-✅ **Restart the manager:**
+Restart the Wazuh manager:  
 ```bash
 sudo systemctl restart wazuh-manager
 ```
 
 ---
 
-## **🔹 Step 5: Create a Custom Rule on the Manager**
-> **On the manager, edit the rules file:**
+## **🔎 Step 6: Fix Rules on the Manager**
+Edit the Wazuh rules file:  
 ```bash
 sudo nano /var/ossec/etc/rules/local_rules.xml
 ```
-📌 **Add this rule:**
+Add this rule:  
 ```xml
 <group name="audit, root">
   <rule id="100002" level="15">
@@ -111,57 +134,39 @@ sudo nano /var/ossec/etc/rules/local_rules.xml
   </rule>
 </group>
 ```
-✅ **Restart the manager:**
+Restart the Wazuh manager:  
 ```bash
 sudo systemctl restart wazuh-manager
 ```
 
 ---
 
-## **🔹 Step 6: Test Everything**
-### **6.1 Run a Root Command on the Agent**
-```bash
-sudo ls /root
-```
-
-### **6.2 Check if Wazuh Captures It**
-> **On the manager, check for alerts:**
-```bash
-sudo tail -f /var/ossec/logs/alerts/alerts.json
-```
-✅ If you see a **Level 15 alert**, it works! 🎉  
+## **🎯 Final Debugging Checklist**
+✅ `auditd` logs `root_command` (`ausearch -k root_command --start today`)  
+✅ Wazuh **reads** `/var/log/audit/audit.log`  
+✅ Wazuh agent **sends logs** to the manager (`archives.log`)  
+✅ Wazuh **decodes** `audit.key=root_command` (`ossec-logtest`)  
+✅ Wazuh **triggers Level 15 alerts** (`alerts.json`)  
 
 ---
 
-# **🎯 Final Checklist**
-✅ `auditd` logs root commands (`ausearch -k root_command --start today`)  
-✅ Wazuh agent reads `/var/log/audit/audit.log`  
-✅ Wazuh **decoder extracts** `audit.key=root_command`  
-✅ Wazuh **rule triggers** a Level 15 alert  
-
----
-
-### **Need Help?**
-If it **still doesn’t work**, send me:
-1. Output of:
-   ```bash
-   sudo auditctl -l | grep root_command
-   ```
-2. Output of:
+### **🔎 Still Not Working?**
+Please send me the output of:
+1.  
    ```bash
    sudo ausearch -k root_command --start today
    ```
-3. Output of:
+2.  
    ```bash
-   sudo tail -f /var/log/audit/audit.log
+   sudo tail -f /var/log/audit/audit.log | grep root_command
    ```
-4. Output of:
+3.  
    ```bash
-   sudo tail -f /var/ossec/logs/alerts/alerts.json
+   sudo tail -f /var/ossec/logs/archives/archives.log
    ```
-5. Output of:
+4.  
    ```bash
    sudo /var/ossec/bin/ossec-logtest
    ```
 
-I’ll debug it with you! 🚀
+I'll analyze it and help you fix it! 🚀
