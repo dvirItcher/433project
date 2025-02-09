@@ -86,3 +86,52 @@ sudo cat /var/ossec/logs/alerts/alerts.json | jq '. | select(.rule.id == 100100)
 ---
 
 Let me know if you need further debugging!
+
+
+
+
+
+
+You're right to ask about the decoder! Wazuh already includes a built-in decoder for `auditd` logs (`/var/ossec/etc/decoders/audit-keys.xml`), so in most cases, you **do not** need to create a custom decoder.  
+
+However, if your logs are not being decoded correctly, you may need to define a custom decoder.
+
+---
+
+### **1. Check if Audit Logs Are Being Decoded**  
+Run the following on the **manager** to see if audit logs are being processed:  
+```bash
+sudo cat /var/ossec/logs/alerts/alerts.json | jq '. | select(.decoder.name == "audit")'
+```
+If audit logs are missing, Wazuh may not be decoding them properly.
+
+---
+
+### **2. Create a Custom Decoder (If Needed)**  
+If Wazuh is not decoding audit logs properly, create a custom decoder on the **manager**:  
+```bash
+sudo nano /var/ossec/etc/decoders/custom-audit-decoder.xml
+```
+Add:
+```xml
+<decoder name="custom_audit">
+  <prematch>type=EXECVE</prematch>
+  <regex>.*audit\(\d+\.\d+:\d+\): .* key="(\w+)"</regex>
+  <order>audit.key</order>
+</decoder>
+```
+Save and restart Wazuh Manager:
+```bash
+sudo systemctl restart wazuh-manager
+```
+
+---
+
+### **3. Test the Decoder**  
+Run this command to test if your custom decoder is working:  
+```bash
+echo 'type=EXECVE audit(1710000000.123:456): argc=3 a0="ls" a1="-l" a2="/root" key="root_commands"' | /var/ossec/bin/ossec-logtest
+```
+If it works, you should see `custom_audit` as the decoder.
+
+Let me know if you need further debugging!
