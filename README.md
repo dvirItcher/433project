@@ -1,57 +1,119 @@
-It sounds like your custom Wazuh setup isn’t generating alerts from your script output. Let’s troubleshoot step-by-step:
+To run a remote command using a Wazuh **wodle** (specifically, the `command` wodle), and then decode and create rules for the command’s output, follow these steps:
 
-1. **Check the Agent Logs:**  
-   Run this on the agent to see if your script output is being logged:  
-   ```bash
-   cat /var/ossec/logs/ossec.log | grep localfile
-   ```
-   or  
-   ```bash
-   cat /var/ossec/logs/ossec.log | grep your_custom_tag
-   ```
-   Make sure the output from your script appears in the agent logs.
+---
 
-2. **Verify Localfile Configuration:**  
-   Confirm that your `<localfile>` block is correctly set up in the agent's `ossec.conf`:
-   ```xml
-   <localfile>
-     <log_format>full_command</log_format>
-     <command>your_script.sh</command>
-     <alias>custom-script</alias>
-   </localfile>
-   ```
-   Ensure there are no typos and that the script has executable permissions:
-   ```bash
-   chmod +x /path/to/your_script.sh
-   ```
+## 1. **Configure the Command Wodle (Agent-Side)**  
+The **wodle** can execute commands at specified intervals and send the output to the Wazuh manager.
 
-3. **Check Decoder:**  
-   Confirm that the decoder is correctly defined and active on the manager. You can test it with:
-   ```bash
-   /var/ossec/bin/wazuh-logtest
-   ```
-   Paste the expected log line and see if the decoder extracts the right fields.
+### **Edit the Agent Configuration**  
+Open `/var/ossec/etc/ossec.conf` on the **agent** and add a `command` wodle:
 
-4. **Check Rule Matching:**  
-   In `wazuh-logtest`, ensure your rule triggers. If it doesn’t, check the `if_sid`, `group`, and `level` settings.
+```xml
+<wodle name="command">
+  <disabled>no</disabled>
+  <schedule>every 1m</schedule>
+  <timeout>60</timeout>
+  <run_command>whoami; id</run_command>
+  <alias>custom_command_output</alias>
+</wodle>
+```
 
-5. **Restart Services Properly:**  
-   Restart both agent and manager:
-   ```bash
-   systemctl restart wazuh-agent
-   systemctl restart wazuh-manager
-   ```
-   Then check for errors:
-   ```bash
-   journalctl -u wazuh-agent -xe
-   journalctl -u wazuh-manager -xe
-   ```
+**Explanation:**  
+- `schedule`: Executes the command every 1 minute.  
+- `timeout`: Maximum execution time.  
+- `run_command`: Command to execute remotely.  
+- `alias`: A label to track the command's output.
 
-6. **Check Manager Logs:**  
-   On the manager:
-   ```bash
-   cat /var/ossec/logs/ossec.log | grep custom-script
-   ```
-   If nothing appears, there may be a problem with decoding or rule configuration.
+**Restart the agent:**  
+```bash
+sudo systemctl restart wazuh-agent
+```
 
-Would you like to share your `localfile`, decoder, and rule configurations? I can review them for errors.
+---
+
+## 2. **Create a Custom Decoder (Manager-Side)**  
+
+Wazuh uses decoders to parse logs from commands like the one above.
+
+### **Add a Decoder**  
+Create a new decoder file:  
+```bash
+sudo nano /var/ossec/etc/decoders/custom_command_decoder.xml
+```
+
+Add the following decoder:
+
+```xml
+<decoder name="custom-command">
+  <prematch>^custom_command_output</prematch>
+</decoder>
+```
+
+### **Explanation:**  
+- `prematch`: Matches the alias specified in the wodle output.  
+
+**Restart the manager:**  
+```bash
+sudo systemctl restart wazuh-manager
+```
+
+---
+
+## 3. **Create a Custom Rule (Manager-Side)**  
+
+Rules determine which logs trigger alerts.
+
+### **Add a Rule**  
+Open the custom rules file:  
+```bash
+sudo nano /var/ossec/etc/rules/local_rules.xml
+```
+
+Add a new rule:
+
+```xml
+<group name="custom_command_group" gid="1001">
+  <rule id="100100" level="15">
+    <decoded_as>custom-command</decoded_as>
+    <description>Command executed remotely: $(log)</description>
+  </rule>
+</group>
+```
+
+**Explanation:**  
+- `decoded_as`: Matches the decoder name we defined.  
+- `log`: Displays the command output in the alert.
+
+**Restart the manager:**  
+```bash
+sudo systemctl restart wazuh-manager
+```
+
+---
+
+## 4. **Testing & Debugging**
+
+### **Force Command Execution:**  
+Wait for the scheduled execution or force it by restarting the agent.
+
+### **Check Logs:**  
+On the agent:  
+```bash
+tail -f /var/ossec/logs/ossec.log
+```
+
+On the manager:  
+```bash
+tail -f /var/ossec/logs/alerts/alerts.json
+```
+
+Look for logs with your command output.
+
+---
+
+This setup should allow Wazuh to:  
+1. **Run commands remotely** with the `command` wodle.  
+2. **Decode the output** with a custom decoder.  
+3. **Generate alerts** based on the command’s output using a custom rule.
+
+Let me know if you encounter any issues!
