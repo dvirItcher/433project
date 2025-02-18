@@ -1,149 +1,79 @@
-If you want to execute a command and process its output using the **wodle** (without relying on `localfile` or external scripts), you can use the `command` wodle. Here’s a step-by-step guide:
+To create a Wazuh rule to detect `Sysmon Event ID 1` (which indicates process creation), you’ll need to follow these steps:
+
+### **1. Verify Sysmon Logs Are Being Forwarded**
+Ensure the Sysmon logs are correctly forwarded to Wazuh. Event ID 1 logs should appear in Wazuh if Sysmon is configured properly. Check logs like this:
+```bash
+grep "EventID\":1" /var/ossec/logs/archives/archives.json
+```
+Or use Wazuh Kibana/manager interface.
 
 ---
 
-# 🛠️ **1. Configure the Command Wodle (Agent-Side)**  
+### **2. Create a Custom Decoder (if needed)**
+If you haven't already, add a custom decoder for Sysmon events:
 
-Open the agent configuration:  
-```bash
-sudo nano /var/ossec/etc/ossec.conf
-```
-
-Add this `wodle` block:
+- Open the custom decoder file (e.g., `/var/ossec/etc/decoders/local_decoder.xml`) on the Wazuh manager.
 
 ```xml
-<wodle name="command">
-  <disabled>no</disabled>
-  <schedule>every 1m</schedule>
-  <timeout>60</timeout>
-  <run_command>whoami; id</run_command>
-  <alias>custom_command_output</alias>
-  <log_stdout>true</log_stdout>
-</wodle>
-```
+<decoder name="sysmon_event">
+  <program_name>winlogbeat</program_name>
+  <field name="win.system.providerName">Microsoft-Windows-Sysmon</field>
+</decoder>
 
-### 🔍 **Explanation:**  
-- **`schedule`:** Runs the command every minute.  
-- **`timeout`:** Stops execution after 60 seconds if needed.  
-- **`run_command`:** Command(s) to execute.  
-- **`alias`:** Prefix to identify the log.  
-- **`log_stdout`:** Captures command output as log messages.  
-
-**Restart the agent:**  
-```bash
-sudo systemctl restart wazuh-agent
-```
-
----
-
-# 🔍 **2. Create a Decoder (Manager-Side)**  
-
-Open the custom decoder file:  
-```bash
-sudo nano /var/ossec/etc/decoders/custom_command_decoder.xml
-```
-
-Add this decoder:
-
-```xml
-<decoder name="custom-command">
-  <prematch>^custom_command_output:</prematch>
+<decoder name="sysmon_event_id_1">
+  <parent>sysmon_event</parent>
+  <field name="win.system.eventID">1</field>
 </decoder>
 ```
 
-### 🧠 **How it works:**  
-- It matches logs starting with `custom_command_output`, which corresponds to the alias you set in the wodle.  
-
-**Restart the manager:**  
+- Save and restart Wazuh Manager:
 ```bash
-sudo systemctl restart wazuh-manager
+systemctl restart wazuh-manager
 ```
 
 ---
 
-# 🚨 **3. Create a Rule (Manager-Side)**  
+### **3. Create a Custom Rule for Event ID 1**
+Now, add the rule to detect process creation events.
 
-Open the custom rules file:  
-```bash
-sudo nano /var/ossec/etc/rules/local_rules.xml
-```
-
-Add a new rule:
+- Open the custom rules file (e.g., `/var/ossec/etc/rules/local_rules.xml`).
 
 ```xml
-<group name="custom_command_group" gid="1001">
-  <rule id="100200" level="15">
-    <decoded_as>custom-command</decoded_as>
-    <description>Remote command executed: $(log)</description>
-  </rule>
+<group name="sysmon_process_creation" gid="1001">
+    <rule id="100100" level="10">
+        <decoded_as>json</decoded_as>
+        <field name="win.system.providerName">Microsoft-Windows-Sysmon</field>
+        <field name="win.system.eventID">1</field>
+        <description>Sysmon Event ID 1 - Process creation detected</description>
+        <group>sysmon,process_creation</group>
+    </rule>
 </group>
 ```
 
-### 🧠 **Explanation:**  
-- This rule triggers on any log decoded with the `custom-command` decoder.  
-- **Level 15** ensures it appears in `alerts.log`.
-
-**Restart the manager:**  
-```bash
-sudo systemctl restart wazuh-manager
+### **Optional Enhancements**
+- To monitor specific processes (e.g., `cmd.exe` or `powershell.exe`):
+```xml
+<rule id="100101" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="win.system.providerName">Microsoft-Windows-Sysmon</field>
+    <field name="win.system.eventID">1</field>
+    <field name="win.event_data.Image">.*(powershell.exe|cmd.exe).*</field>
+    <description>Sysmon Event ID 1 - Suspicious process created (PowerShell or CMD)</description>
+    <group>sysmon,process_creation,suspicious</group>
+</rule>
 ```
 
 ---
 
-# 🧪 **4. Testing & Debugging**  
-
-### **Run the Command Wodle Immediately**  
-Wait for the scheduled interval or restart the agent to trigger it manually:
-
+### **4. Restart Wazuh Manager**
+After editing the rule files, restart the Wazuh manager:
 ```bash
-sudo systemctl restart wazuh-agent
+systemctl restart wazuh-manager
 ```
-
-### **Check Logs**  
-- View the command output in the archives:  
-  ```bash
-  tail -f /var/ossec/logs/archives/archives.log
-  ```
-- Check the alerts:  
-  ```bash
-  tail -f /var/ossec/logs/alerts/alerts.json
-  ```
-
-### **Run a Logtest**  
-Open the logtest utility:
-
-```bash
-/var/ossec/bin/ossec-logtest
-```
-
-Paste a sample log from the archives that starts with `custom_command_output`.
-
-### ✅ **Expected Output**  
-1. **Decoder match:** `custom-command`  
-2. **Rule match:** `100200`  
-3. **Alert description:**  
-   ```
-   Remote command executed: custom_command_output: root - uid=0(root) gid=0(root) groups=0(root)
-   ```
 
 ---
 
-# 🔍 **5. Troubleshooting Checklist**  
+### **5. Test the Rule**
+Trigger process creation by running a command like `cmd.exe` or `powershell.exe` on the monitored machine. Check if Wazuh captures and alerts you on Event ID 1.
 
-1. **Decoder Not Matching:**  
-   - Run `ossec-logtest` to verify the decoder works.  
-   - Check the exact log format in `archives.log`.  
-
-2. **No Alerts:**  
-   - Make sure the rule `level` is ≥ 3.  
-   - Confirm that the custom rules file is properly loaded:  
-     ```bash
-     grep "custom_command_group" /var/ossec/logs/ossec.log
-     ```
-
-3. **Missing Logs:**  
-   - Check permissions on `/var/ossec/logs/archives/archives.log`.  
-
----
-
-This method uses Wazuh’s built-in `command` wodle to execute remote commands, decode their output, and generate alerts based on custom rules. Let me know if you hit any roadblocks! 🚀
+Let me know if you encounter any issues!
