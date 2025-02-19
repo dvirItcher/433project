@@ -1,84 +1,107 @@
-Sysmon logs in Wazuh are treated as standard Windows Event Logs, but they require proper configuration to be collected and decoded correctly. However, there are some specific considerations for Sysmon logs in Wazuh:
+The Wazuh API allows you to interact with and manage your Wazuh installation programmatically. Here’s how you can work with it:
 
-### 1. **Sysmon Logs Are Collected via Windows Event Channel (Not Just a File)**
-   - Unlike standard log files, Sysmon logs are stored in the **Windows Event Log system** under:
-     ```
-     Applications and Services Logs → Microsoft → Windows → Sysmon → Operational
-     ```
-   - Wazuh collects them using the **Windows Event Log (`wodle`) module** instead of `localfile`:
-     ```xml
-     <wodle name="windows_eventchannel">
-       <disabled>no</disabled>
-       <log_format>eventchannel</log_format>
-       <query>
-         <name>Sysmon</name>
-         <log_name>Microsoft-Windows-Sysmon/Operational</log_name>
-       </query>
-     </wodle>
-     ```
-   - If this is missing, Wazuh won’t collect Sysmon logs.
+---
 
-### 2. **EventChannel Logs Are Pre-Processed Differently**
-   - Logs from the Windows Event Channel are received as XML before being processed by Wazuh.
-   - The decoder must match **the XML structure** of the event.
-   - You can check raw logs from Sysmon with:
-     ```bash
-     cat /var/ossec/logs/archives/archives.json | grep "Sysmon"
-     ```
-   - If logs appear but aren’t decoded, adjust your decoder to match the XML format.
+### **1. Enable and Access Wazuh API**
+By default, the Wazuh API runs on port `55000`. To check if it’s running, use:
 
-### 3. **Ensure Sysmon Decoder Matches the XML Format**
-   - Sysmon logs look like this in XML:
-     ```xml
-     <Event>
-       <System>
-         <Provider Name="Microsoft-Windows-Sysmon" Guid="{GUID}" />
-         <EventID>1</EventID>
-       </System>
-       <EventData>
-         <Data Name="Image">C:\Windows\System32\cmd.exe</Data>
-         <Data Name="User">NT AUTHORITY\SYSTEM</Data>
-       </EventData>
-     </Event>
-     ```
-   - Your decoder should handle this structure properly:
-     ```xml
-     <decoder name="sysmon">
-       <prematch>.*Microsoft-Windows-Sysmon.*</prematch>
-       <regex>.*<EventID>(\d+)</EventID>.*</regex>
-       <order>event_id</order>
-     </decoder>
-     ```
+```bash
+curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/"
+```
 
-### 4. **Confirm Sysmon Events Are Parsed Correctly**
-   - Run:
-     ```bash
-     tail -f /var/ossec/logs/ossec.log | grep -i "sysmon"
-     ```
-   - If Wazuh sees Sysmon logs but doesn’t decode them, the decoder might not match the log format.
+If it’s not running, start it with:
 
-### 5. **Rules Must Be Created for Sysmon Alerts**
-   - Decoders structure logs, but rules generate alerts.
-   - Example rule for process creation (Event ID 1):
-     ```xml
-     <group name="sysmon,">
-       <rule id="100200" level="12">
-         <decoded_as>sysmon</decoded_as>
-         <description>Sysmon Process Creation Detected</description>
-         <field name="event_id">1</field>
-       </rule>
-     </group>
-     ```
-   - Restart Wazuh after adding rules:
-     ```bash
-     systemctl restart wazuh-manager
-     ```
+```bash
+systemctl start wazuh-api
+```
 
-### 6. **Use `ossec-logtest -v` for Debugging**
-   - Run:
-     ```bash
-     echo '<Event>...</Event>' | /var/ossec/bin/ossec-logtest -v
-     ```
-   - This helps test if Wazuh is decoding Sysmon logs correctly.
+---
 
-If your Sysmon logs are still not decoded, share your decoder XML and a sample log from `archives.json`.
+### **2. Authenticate with the API**
+You need an API user with proper roles. By default, the `wazuh` user exists. To authenticate, you’ll need the username and password:
+
+```bash
+curl -k -u wazuh:YourPassword -X GET "https://<WAZUH_MANAGER_IP>:55000/security/user/authenticate"
+```
+
+This returns a `JWT token`, which you’ll use in further requests.
+
+Example response:
+```json
+{
+  "data": {
+    "token": "your-jwt-token"
+  }
+}
+```
+
+---
+
+### **3. Making API Requests**
+For all further API requests, pass the token in the `Authorization` header.
+
+#### **List all active agents:**
+```bash
+curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/agents" -H "Authorization: Bearer your-jwt-token"
+```
+
+#### **Get agent information by ID:**
+```bash
+curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/agents/001" -H "Authorization: Bearer your-jwt-token"
+```
+
+#### **Restart an agent:**
+```bash
+curl -k -X PUT "https://<WAZUH_MANAGER_IP>:55000/agents/001/restart" -H "Authorization: Bearer your-jwt-token"
+```
+
+---
+
+### **4. Custom API Queries**
+If you want to query specific logs, for example, check security alerts:
+
+```bash
+curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/alerts?search=root" -H "Authorization: Bearer your-jwt-token"
+```
+
+To fetch logs related to your audit rule:
+
+```bash
+curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/alerts?rule_ids=100001" -H "Authorization: Bearer your-jwt-token"
+```
+
+*(Replace `100001` with your custom rule ID.)*
+
+---
+
+### **5. Automate API Calls with Python**
+You can use Python to interact with the Wazuh API.
+
+```python
+import requests
+
+WAZUH_API = "https://<WAZUH_MANAGER_IP>:55000"
+USERNAME = "wazuh"
+PASSWORD = "YourPassword"
+
+# Authenticate
+response = requests.get(f"{WAZUH_API}/security/user/authenticate", auth=(USERNAME, PASSWORD), verify=False)
+token = response.json()['data']['token']
+
+# Get list of agents
+headers = {"Authorization": f"Bearer {token}"}
+response = requests.get(f"{WAZUH_API}/agents", headers=headers, verify=False)
+
+print(response.json())
+```
+
+---
+
+### **6. Debugging API Issues**
+- **Check API logs**: `/var/ossec/logs/api.log`
+- **Verify service status**: `systemctl status wazuh-api`
+- **Test authentication**: Ensure you’re using the correct username/password.
+
+---
+
+Would you like help automating specific Wazuh tasks using the API?
