@@ -1,107 +1,57 @@
-The Wazuh API allows you to interact with and manage your Wazuh installation programmatically. Here’s how you can work with it:
+If you only have `wazuh-apid.py`, then you're likely using Wazuh 4.3 or later, where the API is now Python-based instead of Node.js. That means the service should be `wazuh-apid.service`, not `wazuh-api.service`.  
+
+### **1. Check if `wazuh-apid` Service Exists**  
+Run:  
+```bash
+systemctl list-units --type=service | grep wazuh  
+```
+or  
+```bash
+systemctl status wazuh-apid
+```
+If the service is **not found**, it might not be enabled or installed correctly.  
 
 ---
 
-### **1. Enable and Access Wazuh API**
-By default, the Wazuh API runs on port `55000`. To check if it’s running, use:
+### **2. Try Manually Running the API**  
+Since you have `wazuh-apid.py`, try running it manually:  
 
 ```bash
-curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/"
+python3 /var/ossec/api/scripts/wazuh-apid.py
 ```
 
-If it’s not running, start it with:
-
-```bash
-systemctl start wazuh-api
-```
+- If this works, the API is fine, but the service is missing.
+- If there’s an error, let me know what it says.
 
 ---
 
-### **2. Authenticate with the API**
-You need an API user with proper roles. By default, the `wazuh` user exists. To authenticate, you’ll need the username and password:
+### **3. Reinstall and Enable the Wazuh API Service**  
+
+If the service is missing, reinstall it:  
 
 ```bash
-curl -k -u wazuh:YourPassword -X GET "https://<WAZUH_MANAGER_IP>:55000/security/user/authenticate"
+apt-get install --reinstall wazuh-api
 ```
+Then, enable and start it:  
 
-This returns a `JWT token`, which you’ll use in further requests.
-
-Example response:
-```json
-{
-  "data": {
-    "token": "your-jwt-token"
-  }
-}
-```
-
----
-
-### **3. Making API Requests**
-For all further API requests, pass the token in the `Authorization` header.
-
-#### **List all active agents:**
 ```bash
-curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/agents" -H "Authorization: Bearer your-jwt-token"
+systemctl daemon-reload
+systemctl enable wazuh-apid
+systemctl start wazuh-apid
 ```
 
-#### **Get agent information by ID:**
+Check the status:  
 ```bash
-curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/agents/001" -H "Authorization: Bearer your-jwt-token"
-```
-
-#### **Restart an agent:**
-```bash
-curl -k -X PUT "https://<WAZUH_MANAGER_IP>:55000/agents/001/restart" -H "Authorization: Bearer your-jwt-token"
+systemctl status wazuh-apid
 ```
 
 ---
 
-### **4. Custom API Queries**
-If you want to query specific logs, for example, check security alerts:
+### **4. Check API Logs for Issues**  
+If the API doesn’t start, check logs:  
 
 ```bash
-curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/alerts?search=root" -H "Authorization: Bearer your-jwt-token"
+cat /var/ossec/logs/api.log
 ```
 
-To fetch logs related to your audit rule:
-
-```bash
-curl -k -X GET "https://<WAZUH_MANAGER_IP>:55000/alerts?rule_ids=100001" -H "Authorization: Bearer your-jwt-token"
-```
-
-*(Replace `100001` with your custom rule ID.)*
-
----
-
-### **5. Automate API Calls with Python**
-You can use Python to interact with the Wazuh API.
-
-```python
-import requests
-
-WAZUH_API = "https://<WAZUH_MANAGER_IP>:55000"
-USERNAME = "wazuh"
-PASSWORD = "YourPassword"
-
-# Authenticate
-response = requests.get(f"{WAZUH_API}/security/user/authenticate", auth=(USERNAME, PASSWORD), verify=False)
-token = response.json()['data']['token']
-
-# Get list of agents
-headers = {"Authorization": f"Bearer {token}"}
-response = requests.get(f"{WAZUH_API}/agents", headers=headers, verify=False)
-
-print(response.json())
-```
-
----
-
-### **6. Debugging API Issues**
-- **Check API logs**: `/var/ossec/logs/api.log`
-- **Verify service status**: `systemctl status wazuh-api`
-- **Test authentication**: Ensure you’re using the correct username/password.
-
----
-
-Would you like help automating specific Wazuh tasks using the API?
+Let me know what error messages you see!
