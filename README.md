@@ -1,79 +1,84 @@
-To create a Wazuh rule to detect `Sysmon Event ID 1` (which indicates process creation), you’ll need to follow these steps:
+Sysmon logs in Wazuh are treated as standard Windows Event Logs, but they require proper configuration to be collected and decoded correctly. However, there are some specific considerations for Sysmon logs in Wazuh:
 
-### **1. Verify Sysmon Logs Are Being Forwarded**
-Ensure the Sysmon logs are correctly forwarded to Wazuh. Event ID 1 logs should appear in Wazuh if Sysmon is configured properly. Check logs like this:
-```bash
-grep "EventID\":1" /var/ossec/logs/archives/archives.json
-```
-Or use Wazuh Kibana/manager interface.
+### 1. **Sysmon Logs Are Collected via Windows Event Channel (Not Just a File)**
+   - Unlike standard log files, Sysmon logs are stored in the **Windows Event Log system** under:
+     ```
+     Applications and Services Logs → Microsoft → Windows → Sysmon → Operational
+     ```
+   - Wazuh collects them using the **Windows Event Log (`wodle`) module** instead of `localfile`:
+     ```xml
+     <wodle name="windows_eventchannel">
+       <disabled>no</disabled>
+       <log_format>eventchannel</log_format>
+       <query>
+         <name>Sysmon</name>
+         <log_name>Microsoft-Windows-Sysmon/Operational</log_name>
+       </query>
+     </wodle>
+     ```
+   - If this is missing, Wazuh won’t collect Sysmon logs.
 
----
+### 2. **EventChannel Logs Are Pre-Processed Differently**
+   - Logs from the Windows Event Channel are received as XML before being processed by Wazuh.
+   - The decoder must match **the XML structure** of the event.
+   - You can check raw logs from Sysmon with:
+     ```bash
+     cat /var/ossec/logs/archives/archives.json | grep "Sysmon"
+     ```
+   - If logs appear but aren’t decoded, adjust your decoder to match the XML format.
 
-### **2. Create a Custom Decoder (if needed)**
-If you haven't already, add a custom decoder for Sysmon events:
+### 3. **Ensure Sysmon Decoder Matches the XML Format**
+   - Sysmon logs look like this in XML:
+     ```xml
+     <Event>
+       <System>
+         <Provider Name="Microsoft-Windows-Sysmon" Guid="{GUID}" />
+         <EventID>1</EventID>
+       </System>
+       <EventData>
+         <Data Name="Image">C:\Windows\System32\cmd.exe</Data>
+         <Data Name="User">NT AUTHORITY\SYSTEM</Data>
+       </EventData>
+     </Event>
+     ```
+   - Your decoder should handle this structure properly:
+     ```xml
+     <decoder name="sysmon">
+       <prematch>.*Microsoft-Windows-Sysmon.*</prematch>
+       <regex>.*<EventID>(\d+)</EventID>.*</regex>
+       <order>event_id</order>
+     </decoder>
+     ```
 
-- Open the custom decoder file (e.g., `/var/ossec/etc/decoders/local_decoder.xml`) on the Wazuh manager.
+### 4. **Confirm Sysmon Events Are Parsed Correctly**
+   - Run:
+     ```bash
+     tail -f /var/ossec/logs/ossec.log | grep -i "sysmon"
+     ```
+   - If Wazuh sees Sysmon logs but doesn’t decode them, the decoder might not match the log format.
 
-```xml
-<decoder name="sysmon_event">
-  <program_name>winlogbeat</program_name>
-  <field name="win.system.providerName">Microsoft-Windows-Sysmon</field>
-</decoder>
+### 5. **Rules Must Be Created for Sysmon Alerts**
+   - Decoders structure logs, but rules generate alerts.
+   - Example rule for process creation (Event ID 1):
+     ```xml
+     <group name="sysmon,">
+       <rule id="100200" level="12">
+         <decoded_as>sysmon</decoded_as>
+         <description>Sysmon Process Creation Detected</description>
+         <field name="event_id">1</field>
+       </rule>
+     </group>
+     ```
+   - Restart Wazuh after adding rules:
+     ```bash
+     systemctl restart wazuh-manager
+     ```
 
-<decoder name="sysmon_event_id_1">
-  <parent>sysmon_event</parent>
-  <field name="win.system.eventID">1</field>
-</decoder>
-```
+### 6. **Use `ossec-logtest -v` for Debugging**
+   - Run:
+     ```bash
+     echo '<Event>...</Event>' | /var/ossec/bin/ossec-logtest -v
+     ```
+   - This helps test if Wazuh is decoding Sysmon logs correctly.
 
-- Save and restart Wazuh Manager:
-```bash
-systemctl restart wazuh-manager
-```
-
----
-
-### **3. Create a Custom Rule for Event ID 1**
-Now, add the rule to detect process creation events.
-
-- Open the custom rules file (e.g., `/var/ossec/etc/rules/local_rules.xml`).
-
-```xml
-<group name="sysmon_process_creation" gid="1001">
-    <rule id="100100" level="10">
-        <decoded_as>json</decoded_as>
-        <field name="win.system.providerName">Microsoft-Windows-Sysmon</field>
-        <field name="win.system.eventID">1</field>
-        <description>Sysmon Event ID 1 - Process creation detected</description>
-        <group>sysmon,process_creation</group>
-    </rule>
-</group>
-```
-
-### **Optional Enhancements**
-- To monitor specific processes (e.g., `cmd.exe` or `powershell.exe`):
-```xml
-<rule id="100101" level="12">
-    <decoded_as>json</decoded_as>
-    <field name="win.system.providerName">Microsoft-Windows-Sysmon</field>
-    <field name="win.system.eventID">1</field>
-    <field name="win.event_data.Image">.*(powershell.exe|cmd.exe).*</field>
-    <description>Sysmon Event ID 1 - Suspicious process created (PowerShell or CMD)</description>
-    <group>sysmon,process_creation,suspicious</group>
-</rule>
-```
-
----
-
-### **4. Restart Wazuh Manager**
-After editing the rule files, restart the Wazuh manager:
-```bash
-systemctl restart wazuh-manager
-```
-
----
-
-### **5. Test the Rule**
-Trigger process creation by running a command like `cmd.exe` or `powershell.exe` on the monitored machine. Check if Wazuh captures and alerts you on Event ID 1.
-
-Let me know if you encounter any issues!
+If your Sysmon logs are still not decoded, share your decoder XML and a sample log from `archives.json`.
