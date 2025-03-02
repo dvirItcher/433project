@@ -1,87 +1,99 @@
-Yes, using Velociraptor to analyze registry changes, file modifications, event logs, and execution artifacts can help determine **who or what changed the lock screen image**. Here’s how you can pinpoint the responsible action:
+To **detect the creation of an admin account** on your machine using **Velociraptor**, you need to monitor **Windows Event Logs, registry changes, and user management commands**. Here’s a structured approach:
 
 ---
 
-### **1. Identifying the Process or User Responsible**
-#### **Check Security Event Logs (Who Made the Change?)**
-- **Event ID 4624 (Login Success):** Helps identify who was logged in at the time of change.
-- **Event ID 4672 (Admin Privileges Used):** Checks if an admin account was involved.
-- **Event ID 4688 (New Process Created):** Reveals if a script, PowerShell, or external program changed the lock screen.
+## **1. Detect Admin Account Creation via Windows Event Logs**
+Windows logs user creation events under **Event ID 4720 (User Account Created)** and admin privilege assignments under **Event ID 4732 (User Added to Administrators Group).**
 
-#### **VQL Query to Find Suspicious Logins and Actions**
+### **VQL Query to Detect Admin Account Creation**
 ```sql
 SELECT * FROM artifacts.windows.events.EventLogs
-WHERE EventID IN (4624, 4672, 4688)
+WHERE EventID IN (4720, 4732)
 ORDER BY TimeGenerated DESC
 ```
-- This helps track the user or process that may have changed the settings.
+- **Event ID 4720** → A new user was created.
+- **Event ID 4732** → A user was added to the **Administrators** group.
+
+> **How this helps:** If a new admin account is created (even stealthily), you’ll see the details, including the username and timestamp.
 
 ---
 
-### **2. Checking Which Program Made the Change**
-#### **Look for Execution Artifacts**
-If **regedit.exe**, **powershell.exe**, or another process changed the lock screen settings, you can detect it using Prefetch or process logs.
+## **2. Monitor Registry Changes for New Admin Users**
+When a new user is created, their profile information is stored in the **SAM (Security Account Manager) registry**.
 
-##### **Velociraptor Prefetch Query**
-```sql
-SELECT * FROM artifacts.windows.prefetch.PrefetchFiles
-WHERE Executable LIKE '%regedit%' OR Executable LIKE '%powershell%' OR Executable LIKE '%gpedit%'
-ORDER BY LastExecuted DESC
-```
-- If you see **regedit.exe** or **powershell.exe** running at the time of the change, it likely means a script or manual edit was used.
-
-##### **Check PowerShell Logs for Suspicious Commands**
-```sql
-SELECT * FROM artifacts.windows.events.EventLogs
-WHERE Source = 'Microsoft-Windows-PowerShell'
-AND EventID = 4104
-```
-- This will show PowerShell commands that might have been used to modify lock screen settings.
-
----
-
-### **3. Checking File Changes for the Lock Screen Image**
-If the lock screen image was **manually changed** by replacing a file, Velociraptor can track **when and how** it was modified.
-
-##### **Find Recent Changes in Lock Screen Image Folders**
-```sql
-SELECT * FROM artifacts.filesystem.Glob
-WHERE Path LIKE 'C:\ProgramData\Microsoft\Windows\SystemData\%'
-OR Path LIKE 'C:\Users\%\AppData\Local\Microsoft\Windows\Themes\%'
-ORDER BY mtime DESC
-```
-- This helps identify when the image file was replaced and possibly by which process.
-
----
-
-### **4. Investigating Group Policy (If Enforced by GPO)**
-If the lock screen was changed via **Group Policy**, the change may have been made by an administrator.
-
-##### **Check GPO Lock Screen Settings**
+### **VQL Query to Detect New User Registry Entries**
 ```sql
 SELECT * FROM artifacts.windows.registry.SysmonRegistry
-WHERE KeyPath LIKE 'HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+WHERE KeyPath LIKE 'HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users'
+ORDER BY LastModified DESC
 ```
-- If `LockScreenImage` is set here, it means Group Policy forced the change.
+> **How this helps:** This detects any new user added at the registry level, even if logs are cleared.
 
 ---
 
-### **5. Correlating Evidence**
-Once you gather data from:
-1. **Event logs (Who was logged in, what ran?)**
-2. **Prefetch files (Was a tool like regedit or PowerShell used?)**
-3. **File modifications (Was the lock screen image manually changed?)**
-4. **Registry changes (Was the lock screen setting modified programmatically?)**
-5. **Group Policy settings (Was it an enforced admin change?)**
+## **3. Detect Admin Account Creation Using PowerShell or CMD**
+If an attacker uses **PowerShell** or **Command Prompt** to create an admin, it can be detected in **Event ID 4688 (New Process Created).**
 
-You can **cross-reference timestamps** and determine **how** the lock screen image was changed and by **whom**.
+### **VQL Query to Detect Suspicious User Creation Commands**
+```sql
+SELECT * FROM artifacts.windows.events.EventLogs
+WHERE EventID = 4688
+AND (CommandLine LIKE '%net user%'
+OR CommandLine LIKE '%New-LocalUser%'
+OR CommandLine LIKE '%Add-LocalGroupMember%'
+OR CommandLine LIKE '%net localgroup administrators%')
+ORDER BY TimeGenerated DESC
+```
+> **How this helps:** It identifies if a **"net user"**, **PowerShell**, or **group modification command** was executed.
 
 ---
 
-### **Conclusion**
-- If **PowerShell or regedit** was used → A user or script changed it.
-- If the **file was replaced** → A manual file modification occurred.
-- If **Group Policy was modified** → An admin enforced the change.
-- If a **malware process modified it** → Prefetch and security logs might reveal an unknown process.
+## **4. Track User Creation with WMI (Windows Management Instrumentation)**
+Attackers might use **WMI** to add users. The WMI event log records these actions under **Event ID 5857**.
 
-Would you like help refining the VQL queries based on your findings?
+### **VQL Query for WMI-Based User Creation**
+```sql
+SELECT * FROM artifacts.windows.events.EventLogs
+WHERE EventID = 5857
+ORDER BY TimeGenerated DESC
+```
+> **How this helps:** This detects admin creation via **WMI-based attacks**.
+
+---
+
+## **5. Monitor Changes in "Administrators" Group Membership**
+The list of admin users is stored in:
+
+```
+HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Aliases\00000220
+```
+This registry key contains all **Administrators Group Members**.
+
+### **VQL Query to Detect New Admin in Local Group**
+```sql
+SELECT * FROM artifacts.windows.registry.SysmonRegistry
+WHERE KeyPath LIKE 'HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Aliases\00000220'
+ORDER BY LastModified DESC
+```
+> **How this helps:** If a user was **added as an admin**, this will detect it.
+
+---
+
+## **6. Enable Continuous Monitoring in Velociraptor**
+To **continuously monitor for new admin accounts**, you can set up **a Velociraptor hunt** with **Event ID 4720 & 4732**.
+
+1. Open **Velociraptor Web UI**.
+2. Go to **Hunt Manager** → Create a new Hunt.
+3. Use the **VQL query for admin account creation (Event 4720 & 4732).**
+4. Set it to run **continuously**.
+5. Configure alerts to notify when a new admin is created.
+
+---
+
+### **Final Notes**
+- If a **stealth admin** is created, logs might be deleted. To counter this:
+  - **Enable Sysmon** for better process tracking.
+  - **Use registry monitoring** (as attackers rarely modify both logs & registry).
+- If an **unknown process** is creating admins, check **Event ID 4688** for command execution.
+
+Would you like help setting up automated alerts for this detection?
