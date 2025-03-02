@@ -1,112 +1,79 @@
-In **Velociraptor**, you can conduct investigations in two ways:  
-
-1. **Active Investigation** – Directly interact with endpoints in real-time to collect forensic data, hunt threats, or respond to incidents.  
-2. **Quiet (Stealthy) Investigation** – Passively collect data without alerting attackers or users, useful for covert monitoring.  
+To detect a spreading virus (or any malware) with **Velociraptor**, you can use its powerful **hunting and detection** capabilities. Here’s how you can approach it:
 
 ---
 
-### **1. Active Investigation in Velociraptor**  
-Active investigations involve **real-time queries, live monitoring, and direct action** on endpoints.  
-
-#### **Steps for Active Investigation:**  
-
-#### ✅ **Step 1: Identify the Target Endpoint**  
-- Go to **"Clients"** in the Velociraptor GUI.  
-- Select the machine you want to investigate.  
-
-#### ✅ **Step 2: Run Live Queries on the Target Machine**  
-Use **Velociraptor Query Language (VQL)** to collect forensic data:  
-
-- **List Running Processes:**  
-  ```sql
-  SELECT * FROM pslist()
-  ```
-- **Check Active Network Connections:**  
-  ```sql
-  SELECT * FROM netstat()
-  ```
-- **Search for Suspicious Files in Temp Folder:**  
-  ```sql
-  SELECT * FROM glob(globs="C:\Users\*\AppData\Local\Temp\*")
-  ```
-- **Monitor Active Users and Logins:**  
-  ```sql
-  SELECT * FROM windows.System.Users()
-  ```
-
-#### ✅ **Step 3: Collect and Analyze Artifacts**  
-- Navigate to **"Collections" > "New Collection"**.  
-- Select forensic artifacts like:  
-  - **Windows.Sys.Processes** (Running processes)  
-  - **Windows.Forensics.UsnJournal** (Deleted/modified files)  
-  - **Windows.System.Registry.HiveList** (Registry keys)  
-  - **Windows.Forensics.PrefetchFiles** (Recently executed programs)  
-  - **Linux.Sys.Processes** (For Linux process analysis)  
-- Click **"Collect"** to fetch the data.  
-
-#### ✅ **Step 4: Take Action if Needed**  
-If a threat is confirmed:  
-- **Kill a Malicious Process:**  
-  ```sql
-  SELECT kill(pid=1234)
-  ```
-- **Delete a Malicious File:**  
-  ```sql
-  SELECT remove(filename="C:\path\to\malware.exe")
-  ```
-- **Collect a Memory Dump for Analysis:**  
-  ```sql
-  SELECT * FROM Windows.DFIR.FullMemoryDump()
-  ```
+### **1. Identify Indicators of Compromise (IOCs)**
+- Look for **suspicious processes**, **network connections**, **file changes**, and **registry modifications**.
+- Gather **hashes**, **domains**, and **IPs** of known malware.
 
 ---
 
-### **2. Quiet (Stealth) Investigation in Velociraptor**  
-A quiet investigation is useful when you don’t want to alert attackers (e.g., malware, insider threats). This method **avoids live commands** and instead **automates data collection in the background**.  
+### **2. Hunt for Malicious Activity**
+Velociraptor allows you to create and run **VQL (Velociraptor Query Language) queries** to detect suspicious behavior.
 
-#### **How to Perform a Quiet Investigation:**  
+#### **A. Detect Suspicious Processes**
+Run the following **VQL query** to find processes with unusual names or locations:
 
-#### ✅ **Step 1: Schedule Background Collection**  
-- Go to **"Server Artifacts" > "Hunt Manager"**.  
-- Create a **new hunt** targeting multiple endpoints.  
-- Choose **artifacts that passively collect data** without triggering alarms:  
-  - **Windows.EventLogs.Security** – Logs security events.  
-  - **Windows.KapeFiles.Targets** – Collects forensic files silently.  
-  - **Windows.Detection.PsExecExecution** – Detects remote execution tools.  
+```sql
+SELECT Pid, Name, Cmdline, Exe, PPid, Username, CreateTime
+FROM pslist()
+WHERE Exe =~ "C:\\Users\\Public\\*" OR Name =~ "svchost.exe" AND Cmdline NOT LIKE "%-k%"
+ORDER BY CreateTime DESC
+```
+- This looks for processes running from `C:\Users\Public\` (a common hiding place for malware).
+- It also detects fake `svchost.exe` processes.
 
-#### ✅ **Step 2: Monitor Anomalous Behavior Without Interaction**  
-Instead of running live commands, use **pre-configured detections**:  
-- **Monitor File Changes in Sensitive Folders:**  
-  ```sql
-  SELECT * FROM glob(globs="C:\Windows\System32\drivers\*.sys")
-  ```
-- **Detect Unauthorized Remote Access:**  
-  ```sql
-  SELECT * FROM Windows.EventLogs.Security WHERE EventID = 4624 AND LogonType = 3
-  ```
-- **Track Execution of Suspicious Scripts (PowerShell, BAT, etc.):**  
-  ```sql
-  SELECT * FROM Windows.Detection.PowershellScriptBlockLogging()
-  ```
+#### **B. Check Active Network Connections**
+Look for suspicious **remote connections**:
 
-#### ✅ **Step 3: Analyze Collected Data Later**  
-- Let Velociraptor **quietly collect logs and forensic data**.  
-- Review **collected artifacts** without triggering alerts.  
-- If you find suspicious activity, escalate to an **active investigation**.  
+```sql
+SELECT Pid, Name, LocalAddress, LocalPort, RemoteAddress, RemotePort, State
+FROM netstat()
+WHERE RemoteAddress NOT LIKE "192.168.%"
+ORDER BY RemoteAddress
+```
+- This shows processes communicating with **external IPs**.
+
+#### **C. Find Newly Created Executables**
+Use Velociraptor's file hunting capabilities to find **recently dropped executables**:
+
+```sql
+SELECT Name, FullPath, MTime, Size
+FROM glob(globs=["C:\\Users\\*\\AppData\\Roaming\\*.exe", "C:\\Users\\*\\AppData\\Local\\*.exe"])
+WHERE MTime > now() - duration("1d")
+```
+- This finds executables created **in the last 24 hours**.
+
+#### **D. Scan for Persistence Mechanisms**
+Check the **Run** registry keys for malware persistence:
+
+```sql
+SELECT Name, Data, Key
+FROM artifact.Windows.System.Registry.RunKeys()
+WHERE Data LIKE "%.exe%"
+```
 
 ---
 
-### **Choosing Between Active & Quiet Investigations**  
-| **Method**        | **Best Use Case** | **Risk** |
-|------------------|-----------------|---------|
-| **Active Investigation** | Real-time forensics, incident response, threat hunting. | Higher risk of detection by attackers. |
-| **Quiet Investigation** | Covert monitoring, insider threat detection, stealth forensics. | Slower, delayed response to threats. |
+### **3. Set Up Live Monitoring**
+Use **Velociraptor Collection & Event Monitoring** to detect malware in real-time:
+
+- **Enable Event Queries**: Monitor for process creation, file modifications, or registry changes.
+- **Collect Logs**: Store forensic logs for further investigation.
+- **Trigger Alerts**: Set up alerts when malware-like activity is detected.
 
 ---
 
-### **Final Tips**  
-- Use **active investigation** for **immediate threat response**.  
-- Use **quiet investigation** when dealing with **insider threats or persistent attackers**.  
-- Always **encrypt communication and logs** to prevent leaks.  
+### **4. Automate Remediation (Optional)**
+If you detect malware:
+- **Kill the Process**: Use `kill -9 <PID>` via Velociraptor remote shell.
+- **Delete Malicious Files**: Automate cleanup scripts.
+- **Isolate the Infected Machine**: Disable its network connection.
 
-Would you like help setting up a **specific query or hunt** in Velociraptor?
+---
+
+### **Final Steps**
+- **Correlate with External Threat Intelligence**: Compare findings with known threat feeds.
+- **Analyze Executables**: Extract and analyze suspicious binaries using **Velociraptor's file carving**.
+
+Would you like help creating a **custom Velociraptor artifact** for this?
