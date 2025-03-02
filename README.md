@@ -1,83 +1,87 @@
-To investigate a **desktop wallpaper change** using **Velociraptor**, you can analyze relevant artifacts that store wallpaper change events. Here’s a step-by-step approach:
+Yes, using Velociraptor to analyze registry changes, file modifications, event logs, and execution artifacts can help determine **who or what changed the lock screen image**. Here’s how you can pinpoint the responsible action:
 
 ---
 
-### **1. Collecting Wallpaper Change Artifacts**
-Windows stores wallpaper information in several locations:
+### **1. Identifying the Process or User Responsible**
+#### **Check Security Event Logs (Who Made the Change?)**
+- **Event ID 4624 (Login Success):** Helps identify who was logged in at the time of change.
+- **Event ID 4672 (Admin Privileges Used):** Checks if an admin account was involved.
+- **Event ID 4688 (New Process Created):** Reveals if a script, PowerShell, or external program changed the lock screen.
 
-#### **A. Registry Artifacts**
-The registry contains paths to the current wallpaper and recent wallpapers:
-- **Current wallpaper path:**
-  - `HKEY_CURRENT_USER\Control Panel\Desktop\Wallpaper`
-- **Recent wallpapers (Windows 10/11):**
-  - `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers`
-
-To collect these registry keys in Velociraptor:
-- Use **Windows.Registry.HiveList** to check if the NTUSER.DAT hive is available.
-- Query the registry with:
-  ```sql
-  SELECT * FROM artifacts.windows.registry.KeyValue
-  WHERE key LIKE 'HKEY_CURRENT_USER\Control Panel\Desktop\Wallpaper'
-  ```
-  or
-  ```sql
-  SELECT * FROM artifacts.windows.registry.KeyValue
-  WHERE key LIKE 'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers'
-  ```
-
-#### **B. Event Logs**
-If a wallpaper change happened recently, event logs might contain clues:
-- **User Preference Changes (Event ID 9010, 9027)**
-  - Location: `Microsoft-Windows-Shell-Core/Operational`
-- **Security Auditing Logs (Event ID 4657)**
-  - If auditing is enabled on registry keys, this event logs changes.
-
-To collect logs:
+#### **VQL Query to Find Suspicious Logins and Actions**
 ```sql
-SELECT * FROM artifacts.windows.eventlogs.EventLog
-WHERE Source = "Microsoft-Windows-Shell-Core/Operational"
-AND (EventID = 9010 OR EventID = 9027)
+SELECT * FROM artifacts.windows.events.EventLogs
+WHERE EventID IN (4624, 4672, 4688)
+ORDER BY TimeGenerated DESC
 ```
-
-#### **C. File System Analysis**
-- The actual wallpaper file might exist at:
-  - `C:\Users\%USERNAME%\AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper`
-  - `C:\Windows\Web\Wallpaper\`
-- Check timestamps (creation/modification) of these files:
-  ```sql
-  SELECT * FROM artifacts.windows.NTFS.MFT
-  WHERE filename LIKE 'C:\Users\%\AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper'
-  ```
-
-#### **D. Prefetch & Jump Lists**
-If a third-party app (e.g., browser or image viewer) changed the wallpaper, its prefetch file or jump list might show recent activity.
-
-- Use **Windows.PrefetchFiles** to check:
-  ```sql
-  SELECT * FROM artifacts.windows.prefetch.PrefetchFiles
-  WHERE filename LIKE 'rundll32.exe' OR filename LIKE 'ms-settings:personalization-background'
-  ```
-- Check **Windows.JumpLists**:
-  ```sql
-  SELECT * FROM artifacts.windows.JumpLists
-  ```
+- This helps track the user or process that may have changed the settings.
 
 ---
 
-### **2. Monitoring Future Wallpaper Changes**
-If you suspect ongoing wallpaper modifications, you can set up **live monitoring** using Velociraptor’s event monitoring:
+### **2. Checking Which Program Made the Change**
+#### **Look for Execution Artifacts**
+If **regedit.exe**, **powershell.exe**, or another process changed the lock screen settings, you can detect it using Prefetch or process logs.
+
+##### **Velociraptor Prefetch Query**
 ```sql
-SELECT * FROM watchdog.FileChange
-WHERE Path LIKE 'C:\Users\%\AppData\Roaming\Microsoft\Windows\Themes\%'
+SELECT * FROM artifacts.windows.prefetch.PrefetchFiles
+WHERE Executable LIKE '%regedit%' OR Executable LIKE '%powershell%' OR Executable LIKE '%gpedit%'
+ORDER BY LastExecuted DESC
 ```
-This will notify you when the wallpaper file is modified.
+- If you see **regedit.exe** or **powershell.exe** running at the time of the change, it likely means a script or manual edit was used.
+
+##### **Check PowerShell Logs for Suspicious Commands**
+```sql
+SELECT * FROM artifacts.windows.events.EventLogs
+WHERE Source = 'Microsoft-Windows-PowerShell'
+AND EventID = 4104
+```
+- This will show PowerShell commands that might have been used to modify lock screen settings.
+
+---
+
+### **3. Checking File Changes for the Lock Screen Image**
+If the lock screen image was **manually changed** by replacing a file, Velociraptor can track **when and how** it was modified.
+
+##### **Find Recent Changes in Lock Screen Image Folders**
+```sql
+SELECT * FROM artifacts.filesystem.Glob
+WHERE Path LIKE 'C:\ProgramData\Microsoft\Windows\SystemData\%'
+OR Path LIKE 'C:\Users\%\AppData\Local\Microsoft\Windows\Themes\%'
+ORDER BY mtime DESC
+```
+- This helps identify when the image file was replaced and possibly by which process.
+
+---
+
+### **4. Investigating Group Policy (If Enforced by GPO)**
+If the lock screen was changed via **Group Policy**, the change may have been made by an administrator.
+
+##### **Check GPO Lock Screen Settings**
+```sql
+SELECT * FROM artifacts.windows.registry.SysmonRegistry
+WHERE KeyPath LIKE 'HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+```
+- If `LockScreenImage` is set here, it means Group Policy forced the change.
+
+---
+
+### **5. Correlating Evidence**
+Once you gather data from:
+1. **Event logs (Who was logged in, what ran?)**
+2. **Prefetch files (Was a tool like regedit or PowerShell used?)**
+3. **File modifications (Was the lock screen image manually changed?)**
+4. **Registry changes (Was the lock screen setting modified programmatically?)**
+5. **Group Policy settings (Was it an enforced admin change?)**
+
+You can **cross-reference timestamps** and determine **how** the lock screen image was changed and by **whom**.
 
 ---
 
 ### **Conclusion**
-By combining **registry analysis, event logs, file system analysis, and monitoring**, you can determine:
-- **When** the wallpaper changed.
-- **Who** changed it.
-- **What** the new wallpaper is.
+- If **PowerShell or regedit** was used → A user or script changed it.
+- If the **file was replaced** → A manual file modification occurred.
+- If **Group Policy was modified** → An admin enforced the change.
+- If a **malware process modified it** → Prefetch and security logs might reveal an unknown process.
 
-Would you like to automate this with a custom Velociraptor hunt?
+Would you like help refining the VQL queries based on your findings?
