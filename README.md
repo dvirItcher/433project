@@ -1,37 +1,41 @@
-You can achieve all three without running commands manually by using **Velociraptor’s GUI and built-in hunts/collections**. Here’s how:
+If Chrome is the process communicating with the suspicious server, let's focus on **browser-specific forensics**. Here's how to proceed:  
 
 ---
 
-### **1. Find the Server's Name/IP Address**  
-- Open **Velociraptor’s Web Interface**.  
-- Go to **"Collections" → "New Collection"**.  
-- Use the **NTFS.Network.Connections** artifact to see **active and historical connections**.  
-  - This will list all network connections, including the **server’s IP address** on port 80.  
-  - If you need the hostname, you can check **DNS queries** using the **Windows.DNSCache** artifact.  
+### **1. Find the Server's IP/Domain via Chrome’s History & Cache**  
+- Go to **"New Collection" → Windows.Forensics.BrowserHistory**  
+- Select **Google Chrome** and collect:  
+  - **History** (Check for suspicious URLs)  
+  - **Cookies** (See if any cookies are set by the bad server)  
+  - **Cache** (Might contain references to downloaded images or scripts)  
+
+If you already have the **IP address**, use **Windows.Forensics.ChromeCache** and search for that IP.  
 
 ---
 
-### **2. Find the Lock Screen Image Changed by the Server**  
-- Go to **"New Collection"** and select **Windows.Indicators.Autoruns**.  
-  - This may show if a script or malware changed the lock screen.  
-- Then, collect **Windows.Artifacts.ChangedFiles** and filter it to check:  
-  - **C:\Windows\Web\Screen**  
-  - **C:\Windows\Web\Wallpaper**  
-  - **C:\Users\Public\Pictures**  
-- If an unauthorized file was added, check its timestamp and hash for further analysis.  
+### **2. Find the Lock Screen Image Downloaded via Chrome**  
+If Chrome downloaded the image, it may be in:  
+- **Downloads Folder** (`C:\Users\USERNAME\Downloads`)  
+- **Temporary Internet Files** (`C:\Users\USERNAME\AppData\Local\Google\Chrome\User Data\Default\Cache`)  
+
+To find the exact file:  
+- Use **Windows.UsnJrnl** to list **recently created/modified files**.  
+- Use **Windows.Forensics.ChromeDownloads** to check **Chrome's download history**.  
 
 ---
 
-### **3. Check if the Computer is Still Communicating with the Server**  
-- Use **NTFS.Network.Connections** again, but now filter results to see **active connections**.  
-- Alternatively, run **Windows.System.NetworkEvents**, which captures real-time traffic logs.  
-- If you see the same server’s IP in active connections, the communication is still happening.  
+### **3. Check if Chrome is Still Communicating with the Server**  
+Use **Windows.Sysmon.ProcessNetworkConnections** and filter for **chrome.exe**:  
+- This will show **active and recent** connections.  
+- Look for connections to the **suspicious IP** on port 80.  
+
+Alternatively, use **Windows.Network.Connections** with `ProcessName = chrome.exe` to get real-time activity.  
 
 ---
 
 ### **Next Steps**  
-- If you confirm malicious activity, **block the IP** in your firewall.  
-- Check **Windows.EventLogs.Security** to see if a process or user triggered these changes.  
-- You can also run **Windows.Sysmon.ProcessNetworkConnections** if you suspect malware is initiating the connection.  
+- If the server is still active, block the IP in **Windows Firewall**.  
+- Check for **browser extensions** in Chrome that may be responsible.  
+- If a script or malware modified Chrome’s settings, check **Windows.Registry.Search** for `Chrome\Policies` to see if a policy forces Chrome to connect.  
 
-Let me know if you need help setting up any of these collections!
+Try these steps and let me know what you find!
