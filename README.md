@@ -1,99 +1,58 @@
-To **detect the creation of an admin account** on your machine using **Velociraptor**, you need to monitor **Windows Event Logs, registry changes, and user management commands**. Here’s a structured approach:
+If the **server is changing the lock screen image**, but you don’t want to run a direct command, you can still retrieve the image **passively** using Velociraptor by monitoring file changes.  
+
+### **Approach: Use Velociraptor's NTFS Analysis to Find New Lock Screen Images**  
+Instead of running a command, you can query Velociraptor’s **NTFS MFT (Master File Table)** records to detect **new or modified images** without executing anything on the endpoint.
 
 ---
 
-## **1. Detect Admin Account Creation via Windows Event Logs**
-Windows logs user creation events under **Event ID 4720 (User Account Created)** and admin privilege assignments under **Event ID 4732 (User Added to Administrators Group).**
+### **Step 1: Search for Recently Modified Lock Screen Images**  
+Since Windows stores lock screen images in known locations, you can retrieve **recently modified files**.
 
-### **VQL Query to Detect Admin Account Creation**
-```sql
-SELECT * FROM artifacts.windows.events.EventLogs
-WHERE EventID IN (4720, 4732)
-ORDER BY TimeGenerated DESC
+#### **VQL Query to Identify New Lock Screen Images**
+```vql
+SELECT FullPath, 
+       Size, 
+       ModificationTime 
+FROM artifact.Windows.NTFS.MFT
+WHERE FullPath LIKE 'C:\\Windows\\Web\\Screen\\%'
+   OR FullPath LIKE 'C:\\Users\\%\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\%'
+ORDER BY ModificationTime DESC
+LIMIT 5
 ```
-- **Event ID 4720** → A new user was created.
-- **Event ID 4732** → A user was added to the **Administrators** group.
-
-> **How this helps:** If a new admin account is created (even stealthily), you’ll see the details, including the username and timestamp.
+##### **What This Does:**
+- Scans the **MFT (Master File Table)** to find **new or modified files** in the lock screen image folders.
+- Doesn't execute any commands on the endpoint.
+- Returns the **latest modified images**.
 
 ---
 
-## **2. Monitor Registry Changes for New Admin Users**
-When a new user is created, their profile information is stored in the **SAM (Security Account Manager) registry**.
-
-### **VQL Query to Detect New User Registry Entries**
-```sql
-SELECT * FROM artifacts.windows.registry.SysmonRegistry
-WHERE KeyPath LIKE 'HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users'
-ORDER BY LastModified DESC
-```
-> **How this helps:** This detects any new user added at the registry level, even if logs are cleared.
+### **Step 2: Download the Image (Without Running a Command)**
+1. **Run the query** in Velociraptor.
+2. Find the **most recently modified file**.
+3. Use Velociraptor’s **File Finder** to retrieve it:
+   - **Navigate to "Collected Data" → "File Finder"**.
+   - Enter the **file path** found in the query.
+   - Click **"Download File"**.
 
 ---
 
-## **3. Detect Admin Account Creation Using PowerShell or CMD**
-If an attacker uses **PowerShell** or **Command Prompt** to create an admin, it can be detected in **Event ID 4688 (New Process Created).**
+### **Alternative: Monitor for Future Lock Screen Changes (Passive Detection)**
+If you want to **automatically detect when the server updates the lock screen**, set up a **hunt** to monitor file modifications.
 
-### **VQL Query to Detect Suspicious User Creation Commands**
-```sql
-SELECT * FROM artifacts.windows.events.EventLogs
-WHERE EventID = 4688
-AND (CommandLine LIKE '%net user%'
-OR CommandLine LIKE '%New-LocalUser%'
-OR CommandLine LIKE '%Add-LocalGroupMember%'
-OR CommandLine LIKE '%net localgroup administrators%')
-ORDER BY TimeGenerated DESC
-```
-> **How this helps:** It identifies if a **"net user"**, **PowerShell**, or **group modification command** was executed.
+1. **Go to "Hunts" → Create New Hunt**.
+2. Use the **Windows.NTFS.MFT** artifact.
+3. Filter results for:
+   ```vql
+   WHERE FullPath LIKE 'C:\\Windows\\Web\\Screen\\%' 
+      OR FullPath LIKE 'C:\\Users\\%\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\%'
+   ```
+4. Set it to **run periodically** (e.g., every hour).
+5. Whenever a new image is detected, it will appear in Velociraptor.
 
 ---
 
-## **4. Track User Creation with WMI (Windows Management Instrumentation)**
-Attackers might use **WMI** to add users. The WMI event log records these actions under **Event ID 5857**.
+### **Next Steps**
+- Do you want to **automate image collection** whenever it changes?  
+- Would you like to **extract metadata** from the image (e.g., timestamps, creation details)?  
 
-### **VQL Query for WMI-Based User Creation**
-```sql
-SELECT * FROM artifacts.windows.events.EventLogs
-WHERE EventID = 5857
-ORDER BY TimeGenerated DESC
-```
-> **How this helps:** This detects admin creation via **WMI-based attacks**.
-
----
-
-## **5. Monitor Changes in "Administrators" Group Membership**
-The list of admin users is stored in:
-
-```
-HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Aliases\00000220
-```
-This registry key contains all **Administrators Group Members**.
-
-### **VQL Query to Detect New Admin in Local Group**
-```sql
-SELECT * FROM artifacts.windows.registry.SysmonRegistry
-WHERE KeyPath LIKE 'HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Aliases\00000220'
-ORDER BY LastModified DESC
-```
-> **How this helps:** If a user was **added as an admin**, this will detect it.
-
----
-
-## **6. Enable Continuous Monitoring in Velociraptor**
-To **continuously monitor for new admin accounts**, you can set up **a Velociraptor hunt** with **Event ID 4720 & 4732**.
-
-1. Open **Velociraptor Web UI**.
-2. Go to **Hunt Manager** → Create a new Hunt.
-3. Use the **VQL query for admin account creation (Event 4720 & 4732).**
-4. Set it to run **continuously**.
-5. Configure alerts to notify when a new admin is created.
-
----
-
-### **Final Notes**
-- If a **stealth admin** is created, logs might be deleted. To counter this:
-  - **Enable Sysmon** for better process tracking.
-  - **Use registry monitoring** (as attackers rarely modify both logs & registry).
-- If an **unknown process** is creating admins, check **Event ID 4688** for command execution.
-
-Would you like help setting up automated alerts for this detection?
+Let me know how you’d like to refine this further!
