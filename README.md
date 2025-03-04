@@ -1,58 +1,82 @@
-If the **server is changing the lock screen image**, but you don’t want to run a direct command, you can still retrieve the image **passively** using Velociraptor by monitoring file changes.  
-
-### **Approach: Use Velociraptor's NTFS Analysis to Find New Lock Screen Images**  
-Instead of running a command, you can query Velociraptor’s **NTFS MFT (Master File Table)** records to detect **new or modified images** without executing anything on the endpoint.
+If querying the **MFT (Master File Table)** didn’t return results, we can try other methods to find the lock screen image without executing a command. Here are a few alternative approaches:
 
 ---
 
-### **Step 1: Search for Recently Modified Lock Screen Images**  
-Since Windows stores lock screen images in known locations, you can retrieve **recently modified files**.
+### **1. Use Velociraptor's Raw NTFS Query**
+Instead of the **Windows.NTFS.MFT** artifact, try using **raw NTFS file enumeration** to list all files in the expected folders.
 
-#### **VQL Query to Identify New Lock Screen Images**
+#### **VQL Query to List Lock Screen Images (Without Running a Command)**
 ```vql
 SELECT FullPath, 
        Size, 
        ModificationTime 
-FROM artifact.Windows.NTFS.MFT
-WHERE FullPath LIKE 'C:\\Windows\\Web\\Screen\\%'
-   OR FullPath LIKE 'C:\\Users\\%\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\%'
+FROM artifact.Windows.NTFS.EnumerateFiles(globs=[
+  'C:\\Windows\\Web\\Screen\\*',
+  'C:\\Users\\*\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\*'
+])
 ORDER BY ModificationTime DESC
 LIMIT 5
 ```
-##### **What This Does:**
-- Scans the **MFT (Master File Table)** to find **new or modified files** in the lock screen image folders.
-- Doesn't execute any commands on the endpoint.
-- Returns the **latest modified images**.
+
+##### **Why This Might Work**
+- This directly **lists files** from disk without relying on Windows APIs.
+- If the images are not appearing in the MFT query, they may still be accessible via direct **file enumeration**.
 
 ---
 
-### **Step 2: Download the Image (Without Running a Command)**
-1. **Run the query** in Velociraptor.
-2. Find the **most recently modified file**.
-3. Use Velociraptor’s **File Finder** to retrieve it:
-   - **Navigate to "Collected Data" → "File Finder"**.
-   - Enter the **file path** found in the query.
-   - Click **"Download File"**.
+### **2. Retrieve Previous File Versions (If Changed or Deleted)**
+If the **server replaced** the lock screen image, you might still find it in **Windows Shadow Copies** or **journal logs**.
+
+#### **Check NTFS Journal for Recent Changes**
+```vql
+SELECT FullPath, 
+       Action, 
+       ChangeTime 
+FROM artifact.Windows.NTFS.UsnJournal()
+WHERE FullPath LIKE 'C:\\Windows\\Web\\Screen\\%'
+   OR FullPath LIKE 'C:\\Users\\%\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\%'
+ORDER BY ChangeTime DESC
+LIMIT 10
+```
+
+##### **This Helps If:**
+- The server **replaced or deleted** the image.
+- The file’s history is still in the **NTFS Change Journal**.
 
 ---
 
-### **Alternative: Monitor for Future Lock Screen Changes (Passive Detection)**
-If you want to **automatically detect when the server updates the lock screen**, set up a **hunt** to monitor file modifications.
+### **3. Check Windows Registry for Lock Screen Image**
+If the image has been **set manually**, the path might be stored in the **Windows Registry**.
 
-1. **Go to "Hunts" → Create New Hunt**.
-2. Use the **Windows.NTFS.MFT** artifact.
-3. Filter results for:
-   ```vql
-   WHERE FullPath LIKE 'C:\\Windows\\Web\\Screen\\%' 
-      OR FullPath LIKE 'C:\\Users\\%\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\%'
-   ```
-4. Set it to **run periodically** (e.g., every hour).
-5. Whenever a new image is detected, it will appear in Velociraptor.
+#### **VQL Query to Get Lock Screen Path from Registry**
+```vql
+SELECT ValueName, ValueData 
+FROM artifact.Windows.Registry.ListValues(
+  keys=['HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PersonalizationCSP']
+)
+```
+
+##### **Why This Might Work**
+- If the server applied a **custom lock screen**, the image’s path might be **stored in the registry**.
+- This lets you **locate the exact image file**.
+
+---
+
+### **4. Recover the Image from Memory or Pagefile**
+If the **lock screen was recently displayed**, it may still exist in memory.
+
+#### **Extract Memory Artifacts (If Enabled)**
+```vql
+SELECT * 
+FROM artifact.Windows.Memory.Acquisition()
+```
+You can then **search the memory dump** for **image file signatures**.
 
 ---
 
 ### **Next Steps**
-- Do you want to **automate image collection** whenever it changes?  
-- Would you like to **extract metadata** from the image (e.g., timestamps, creation details)?  
+- Did **any of these methods return results**?
+- Do you suspect the image was **deleted or overwritten**?
+- Should we try a **forensic approach**, like **Shadow Copies** or **$Recycle.Bin** recovery?
 
-Let me know how you’d like to refine this further!
+Let me know what worked (or didn’t), and I’ll refine the approach further!
