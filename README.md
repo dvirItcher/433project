@@ -1,82 +1,37 @@
-If querying the **MFT (Master File Table)** didn’t return results, we can try other methods to find the lock screen image without executing a command. Here are a few alternative approaches:
+You can achieve all three without running commands manually by using **Velociraptor’s GUI and built-in hunts/collections**. Here’s how:
 
 ---
 
-### **1. Use Velociraptor's Raw NTFS Query**
-Instead of the **Windows.NTFS.MFT** artifact, try using **raw NTFS file enumeration** to list all files in the expected folders.
-
-#### **VQL Query to List Lock Screen Images (Without Running a Command)**
-```vql
-SELECT FullPath, 
-       Size, 
-       ModificationTime 
-FROM artifact.Windows.NTFS.EnumerateFiles(globs=[
-  'C:\\Windows\\Web\\Screen\\*',
-  'C:\\Users\\*\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\*'
-])
-ORDER BY ModificationTime DESC
-LIMIT 5
-```
-
-##### **Why This Might Work**
-- This directly **lists files** from disk without relying on Windows APIs.
-- If the images are not appearing in the MFT query, they may still be accessible via direct **file enumeration**.
+### **1. Find the Server's Name/IP Address**  
+- Open **Velociraptor’s Web Interface**.  
+- Go to **"Collections" → "New Collection"**.  
+- Use the **NTFS.Network.Connections** artifact to see **active and historical connections**.  
+  - This will list all network connections, including the **server’s IP address** on port 80.  
+  - If you need the hostname, you can check **DNS queries** using the **Windows.DNSCache** artifact.  
 
 ---
 
-### **2. Retrieve Previous File Versions (If Changed or Deleted)**
-If the **server replaced** the lock screen image, you might still find it in **Windows Shadow Copies** or **journal logs**.
-
-#### **Check NTFS Journal for Recent Changes**
-```vql
-SELECT FullPath, 
-       Action, 
-       ChangeTime 
-FROM artifact.Windows.NTFS.UsnJournal()
-WHERE FullPath LIKE 'C:\\Windows\\Web\\Screen\\%'
-   OR FullPath LIKE 'C:\\Users\\%\\AppData\\Local\\Packages\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\\LocalState\\Assets\\%'
-ORDER BY ChangeTime DESC
-LIMIT 10
-```
-
-##### **This Helps If:**
-- The server **replaced or deleted** the image.
-- The file’s history is still in the **NTFS Change Journal**.
+### **2. Find the Lock Screen Image Changed by the Server**  
+- Go to **"New Collection"** and select **Windows.Indicators.Autoruns**.  
+  - This may show if a script or malware changed the lock screen.  
+- Then, collect **Windows.Artifacts.ChangedFiles** and filter it to check:  
+  - **C:\Windows\Web\Screen**  
+  - **C:\Windows\Web\Wallpaper**  
+  - **C:\Users\Public\Pictures**  
+- If an unauthorized file was added, check its timestamp and hash for further analysis.  
 
 ---
 
-### **3. Check Windows Registry for Lock Screen Image**
-If the image has been **set manually**, the path might be stored in the **Windows Registry**.
-
-#### **VQL Query to Get Lock Screen Path from Registry**
-```vql
-SELECT ValueName, ValueData 
-FROM artifact.Windows.Registry.ListValues(
-  keys=['HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PersonalizationCSP']
-)
-```
-
-##### **Why This Might Work**
-- If the server applied a **custom lock screen**, the image’s path might be **stored in the registry**.
-- This lets you **locate the exact image file**.
+### **3. Check if the Computer is Still Communicating with the Server**  
+- Use **NTFS.Network.Connections** again, but now filter results to see **active connections**.  
+- Alternatively, run **Windows.System.NetworkEvents**, which captures real-time traffic logs.  
+- If you see the same server’s IP in active connections, the communication is still happening.  
 
 ---
 
-### **4. Recover the Image from Memory or Pagefile**
-If the **lock screen was recently displayed**, it may still exist in memory.
+### **Next Steps**  
+- If you confirm malicious activity, **block the IP** in your firewall.  
+- Check **Windows.EventLogs.Security** to see if a process or user triggered these changes.  
+- You can also run **Windows.Sysmon.ProcessNetworkConnections** if you suspect malware is initiating the connection.  
 
-#### **Extract Memory Artifacts (If Enabled)**
-```vql
-SELECT * 
-FROM artifact.Windows.Memory.Acquisition()
-```
-You can then **search the memory dump** for **image file signatures**.
-
----
-
-### **Next Steps**
-- Did **any of these methods return results**?
-- Do you suspect the image was **deleted or overwritten**?
-- Should we try a **forensic approach**, like **Shadow Copies** or **$Recycle.Bin** recovery?
-
-Let me know what worked (or didn’t), and I’ll refine the approach further!
+Let me know if you need help setting up any of these collections!
