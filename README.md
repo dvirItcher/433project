@@ -1,60 +1,45 @@
-If you can't use **Windows.Forensics.ChromeDownloads**, you can still find the downloaded PS1 script manually using other methods. Here's an alternative approach:  
+Good morning! Since you set up a **self-signed** Velociraptor server, you need to configure it to allow external access to the GUI from another machine. Follow these steps:
 
----
+### 1. **Modify Velociraptor Configuration**  
+You need to edit the server's configuration file (typically `/etc/velociraptor.config.yaml` or the file you generated during setup). Open it with a text editor:
+```bash
+sudo nano /etc/velociraptor.config.yaml
+```
+Find the section under `GUI:` and `frontend:` and update the `bind_address` to `0.0.0.0` so that it listens on all interfaces:
+```yaml
+GUI:
+  bind_address: 0.0.0.0
+  bind_port: 8889  # Change this if needed
 
-### **1. Find the PS1 Script in Chrome’s Download History**  
-Since you can’t use **Windows.Forensics.ChromeDownloads**, try these options:  
+frontend:
+  bind_address: 0.0.0.0
+  bind_port: 8000  # Change this if needed
+```
+Save and exit (`CTRL + X`, then `Y`, then `Enter`).
 
-#### **Option 1: Check Chrome’s Local Download History File**
-Chrome stores download history in an SQLite database:  
-- Navigate to:  
-  ```
-  C:\Users\USERNAME\AppData\Local\Google\Chrome\User Data\Default\History
-  ```
-- Open the **"History"** file with an SQLite viewer and run:  
-  ```sql
-  SELECT target_path FROM downloads;
-  ```
-  This will show the file path of all downloaded files, including the PS1 script.  
+### 2. **Restart Velociraptor**  
+Apply the changes by restarting the Velociraptor service:
+```bash
+sudo systemctl restart velociraptor
+```
 
-#### **Option 2: Use Windows.USNJournal for Recently Created PS1 Files**  
-- Collect **Windows.UsnJrnl** and filter for `.ps1` files.  
-- This will list all recently created/modified scripts, including the one downloaded via Chrome.  
+### 3. **Allow Firewall Rules (If Enabled)**  
+If you are using a firewall (e.g., `ufw` or `iptables`), allow access to the Velociraptor GUI port (default is `8889`):
+```bash
+sudo ufw allow 8889/tcp
+sudo ufw allow 8000/tcp
+```
+For `iptables`:
+```bash
+sudo iptables -A INPUT -p tcp --dport 8889 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 8000 -j ACCEPT
+```
 
----
+### 4. **Access from Another Machine**  
+On your browser, enter the following, replacing `<server-ip>` with your Velociraptor server’s IP address:
+```
+https://<server-ip>:8889
+```
+Since it is self-signed, your browser will warn about an insecure connection. Click **Advanced** and proceed.
 
-### **2. Analyze the PS1 Script to Find the Lock Screen Image Path**  
-Once you find the PS1 file, open it and look for:  
-- **File path assignments**, such as:  
-  ```powershell
-  $ImagePath = "C:\Windows\Web\Screen\new_lock_screen.jpg"
-  ```
-- **Registry modifications**, such as:  
-  ```powershell
-  Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP" -Name "LockScreenImagePath" -Value "C:\Windows\Web\Screen\hacked.jpg"
-  ```
-  If you see a registry modification, retrieve the image path using **Windows.Registry.Search** (search for `LockScreenImagePath`).  
-
----
-
-### **3. Retrieve the Modified Lock Screen Image**  
-Once you know the image path, use **Windows.Forensics.FileFinder** to collect it.  
-
-Common locations:  
-- `C:\Windows\Web\Screen\`  
-- `C:\Windows\Web\Wallpaper\`  
-- `C:\Users\Public\Pictures\`  
-
-If the file is missing, check:  
-- **Windows.RecycleBin** (in case it was deleted).  
-- **Windows.UsnJrnl** (to find old file references).  
-
----
-
-### **Final Step: Check If the PS1 Script is Still Running**  
-- Use **Windows.Sysmon.ProcessCreate** to see if PowerShell executed recently.  
-- Check **Windows.EventLogs.Security** for PowerShell execution logs.  
-
----
-
-Try these steps and let me know what you find!
+Let me know if you run into any issues!
