@@ -1,45 +1,87 @@
-Good morning! Since you set up a **self-signed** Velociraptor server, you need to configure it to allow external access to the GUI from another machine. Follow these steps:
+Good morning! I can walk you through setting up a Velociraptor server and configuring it for remote GUI access. Here's a step-by-step guide:
 
-### 1. **Modify Velociraptor Configuration**  
-You need to edit the server's configuration file (typically `/etc/velociraptor.config.yaml` or the file you generated during setup). Open it with a text editor:
-```bash
-sudo nano /etc/velociraptor.config.yaml
-```
-Find the section under `GUI:` and `frontend:` and update the `bind_address` to `0.0.0.0` so that it listens on all interfaces:
-```yaml
-GUI:
-  bind_address: 0.0.0.0
-  bind_port: 8889  # Change this if needed
+### **1. Install Velociraptor on the Server**
+1. Download the latest Velociraptor binary:
+   - [https://github.com/Velocidex/velociraptor/releases](https://github.com/Velocidex/velociraptor/releases)
 
-frontend:
-  bind_address: 0.0.0.0
-  bind_port: 8000  # Change this if needed
-```
-Save and exit (`CTRL + X`, then `Y`, then `Enter`).
+2. Make the binary executable:
+   ```bash
+   chmod +x velociraptor-vX.X.X-linux-amd64
+   ```
 
-### 2. **Restart Velociraptor**  
-Apply the changes by restarting the Velociraptor service:
-```bash
-sudo systemctl restart velociraptor
-```
+3. Move it to a directory in your `PATH`:
+   ```bash
+   sudo mv velociraptor-vX.X.X-linux-amd64 /usr/local/bin/velociraptor
+   ```
 
-### 3. **Allow Firewall Rules (If Enabled)**  
-If you are using a firewall (e.g., `ufw` or `iptables`), allow access to the Velociraptor GUI port (default is `8889`):
-```bash
-sudo ufw allow 8889/tcp
-sudo ufw allow 8000/tcp
-```
-For `iptables`:
-```bash
-sudo iptables -A INPUT -p tcp --dport 8889 -j ACCEPT
-sudo iptables -A INPUT -p tcp --dport 8000 -j ACCEPT
-```
+---
 
-### 4. **Access from Another Machine**  
-On your browser, enter the following, replacing `<server-ip>` with your Velociraptor server’s IP address:
-```
-https://<server-ip>:8889
-```
-Since it is self-signed, your browser will warn about an insecure connection. Click **Advanced** and proceed.
+### **2. Generate a Configuration File**
+1. Create a Velociraptor server configuration:
+   ```bash
+   velociraptor config generate -i
+   ```
+   - **Frontend URL**: Use the server's IP or DNS name (`https://<server-ip>:8000`)
+   - **GUI bind address**: Set it to `0.0.0.0:8889` to allow connections from any address.
+   - Generate SSL certificates when prompted (self-signed is fine for local use).
 
-Let me know if you run into any issues!
+2. Save the generated configuration (e.g., `/etc/velociraptor.config.yaml`).
+
+---
+
+### **3. Start the Velociraptor Server**
+1. Start the server using the config file:
+   ```bash
+   sudo velociraptor -c /etc/velociraptor.config.yaml frontend
+   ```
+
+2. (Optional) Set up a systemd service to keep it running:
+   Create a service file:
+   ```bash
+   sudo nano /etc/systemd/system/velociraptor.service
+   ```
+   Add the following:
+   ```ini
+   [Unit]
+   Description=Velociraptor Server
+   After=network.target
+
+   [Service]
+   ExecStart=/usr/local/bin/velociraptor -c /etc/velociraptor.config.yaml frontend
+   Restart=always
+   User=root
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   Enable and start the service:
+   ```bash
+   sudo systemctl enable velociraptor
+   sudo systemctl start velociraptor
+   ```
+
+---
+
+### **4. Open Firewall Ports**
+- Open the GUI port (e.g., 8889) and frontend port (e.g., 8000) in the firewall:
+   ```bash
+   sudo ufw allow 8000/tcp
+   sudo ufw allow 8889/tcp
+   sudo ufw reload
+   ```
+
+---
+
+### **5. Connect to the GUI from Another Machine**
+1. Open a browser on another machine and navigate to:
+   ```
+   https://<server-ip>:8889
+   ```
+2. Log in using the credentials from the setup process.
+
+---
+
+### ✅ **Next Steps**
+- If you want to enroll endpoints, you can generate a client configuration file and install it on the target machine.
+- Let me know if you need help setting up the agents!
