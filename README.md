@@ -1,87 +1,49 @@
-Good morning! I can walk you through setting up a Velociraptor server and configuring it for remote GUI access. Here's a step-by-step guide:
+If you have access to the Trellix ePO (formerly McAfee ePO) server but have forgotten the admin password, you can reset it or create a new user through the following methods:
 
-### **1. Install Velociraptor on the Server**
-1. Download the latest Velociraptor binary:
-   - [https://github.com/Velocidex/velociraptor/releases](https://github.com/Velocidex/velociraptor/releases)
-
-2. Make the binary executable:
+### **Method 1: Reset Admin Password Using `cmdagent` Command**
+1. **Log into the ePO server** directly using an account with administrative access.
+2. Open a **Command Prompt** as an administrator.
+3. Navigate to the ePO installation directory, typically:
    ```bash
-   chmod +x velociraptor-vX.X.X-linux-amd64
+   C:\Program Files (x86)\McAfee\ePolicy Orchestrator\Server\bin
    ```
-
-3. Move it to a directory in your `PATH`:
+4. Run the following command to reset the admin password to "admin":
    ```bash
-   sudo mv velociraptor-vX.X.X-linux-amd64 /usr/local/bin/velociraptor
+   pwreset.cmd
    ```
+   - This will reset the admin password to **"admin"**.
 
----
+### **Method 2: Create a New User in SQL Database**
+If the password reset script doesn’t work, you can create a new user directly through the ePO database:
 
-### **2. Generate a Configuration File**
-1. Create a Velociraptor server configuration:
-   ```bash
-   velociraptor config generate -i
+1. Open **SQL Server Management Studio** and connect to the database server hosting the ePO database.
+2. Find the ePO database (usually named **"ePO_<ServerName>"**).
+3. Execute the following SQL query to create a new user with admin rights:
+   ```sql
+   INSERT INTO OrionUsers (UserName, UserPassword, LastName, FirstName, Email, Description, AuthType, Disabled, PasswordNeverExpires)
+   VALUES ('newadmin', HASHBYTES('SHA1', 'password'), 'Admin', 'New', 'admin@example.com', 'New admin account', 1, 0, 1);
+
+   INSERT INTO OrionUserRoles (UserID, RoleID)
+   SELECT (SELECT UserID FROM OrionUsers WHERE UserName = 'newadmin'), RoleID FROM OrionRoles WHERE RoleName = 'Administrator';
    ```
-   - **Frontend URL**: Use the server's IP or DNS name (`https://<server-ip>:8000`)
-   - **GUI bind address**: Set it to `0.0.0.0:8889` to allow connections from any address.
-   - Generate SSL certificates when prompted (self-signed is fine for local use).
+   - Replace `'newadmin'` and `'password'` with your preferred username and password.
+   - The `AuthType` value of `1` indicates a local user (not LDAP).
+4. Restart the ePO services:
+   - Open **Services** (`services.msc`) and restart:
+     - `McAfee ePolicy Orchestrator Server`
+     - `McAfee ePolicy Orchestrator Event Parser`
 
-2. Save the generated configuration (e.g., `/etc/velociraptor.config.yaml`).
+### **Method 3: Reset Admin Password via SQL**
+You can also reset the existing admin password directly through SQL:
 
----
-
-### **3. Start the Velociraptor Server**
-1. Start the server using the config file:
-   ```bash
-   sudo velociraptor -c /etc/velociraptor.config.yaml frontend
+1. Open **SQL Server Management Studio**.
+2. Connect to the ePO database.
+3. Run the following query to reset the admin password to **"admin"**:
+   ```sql
+   UPDATE OrionUsers
+   SET UserPassword = HASHBYTES('SHA1', 'admin')
+   WHERE UserName = 'admin';
    ```
+4. Restart the ePO services.
 
-2. (Optional) Set up a systemd service to keep it running:
-   Create a service file:
-   ```bash
-   sudo nano /etc/systemd/system/velociraptor.service
-   ```
-   Add the following:
-   ```ini
-   [Unit]
-   Description=Velociraptor Server
-   After=network.target
-
-   [Service]
-   ExecStart=/usr/local/bin/velociraptor -c /etc/velociraptor.config.yaml frontend
-   Restart=always
-   User=root
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-   Enable and start the service:
-   ```bash
-   sudo systemctl enable velociraptor
-   sudo systemctl start velociraptor
-   ```
-
----
-
-### **4. Open Firewall Ports**
-- Open the GUI port (e.g., 8889) and frontend port (e.g., 8000) in the firewall:
-   ```bash
-   sudo ufw allow 8000/tcp
-   sudo ufw allow 8889/tcp
-   sudo ufw reload
-   ```
-
----
-
-### **5. Connect to the GUI from Another Machine**
-1. Open a browser on another machine and navigate to:
-   ```
-   https://<server-ip>:8889
-   ```
-2. Log in using the credentials from the setup process.
-
----
-
-### ✅ **Next Steps**
-- If you want to enroll endpoints, you can generate a client configuration file and install it on the target machine.
-- Let me know if you need help setting up the agents!
+Let me know which method you want to try!
