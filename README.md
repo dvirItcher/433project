@@ -1,13 +1,49 @@
-Trellix ePolicy Orchestrator (ePO) includes several default server tasks designed to automate and streamline various administrative and maintenance operations. Here are five key default server tasks:
+Since you're using **Trellix ePO** (formerly McAfee ePO), the steps are similar but adapted for Trellix:  
 
-1. **AutoUpdate**: This task automatically retrieves and applies the latest updates for installed security products, ensuring that all managed systems are protected with the most current threat definitions and software enhancements.
+### **Fixing Database Connection Issue After Password Change**  
 
-2. **Extract Events**: This task processes and transfers collected event data from managed systems to the ePO database. By doing so, it enables administrators to monitor and analyze security events effectively.
+#### **Method 1: Use Trellix ePO Configuration Tool (If Available)**  
+1. **Log into the ePO Server** with admin privileges.  
+2. Navigate to:  
+   ```
+   C:\Program Files (x86)\Trellix\ePolicy Orchestrator\DB\
+   ```
+   - If `Config.exe` exists, **run it as Administrator**.  
+   - Update the **database credentials** and save.  
+   - Restart **Trellix ePO services**.  
 
-3. **Inactive Agents Cleanup**: This task identifies and removes agents that have not communicated with the ePO server within a specified timeframe. This helps maintain an accurate representation of active systems within the network.
+#### **Method 2: Modify the Database Configuration File**  
+1. Navigate to:  
+   ```
+   C:\Program Files (x86)\Trellix\ePolicy Orchestrator\Server\conf\orion\
+   ```
+2. Open **db.properties** in Notepad++.  
+3. Look for these lines:  
+   ```
+   db.user=DOMAIN\YourUser
+   db.password=ENCRYPTED_PASSWORD
+   ```
+   - Update the **username** if needed.  
+   - If the password is encrypted, use the next method to reset it.  
 
-4. **Server Maintenance**: This task performs routine maintenance activities on the ePO server, such as purging old data, optimizing database performance, and ensuring the overall health of the server environment.
+#### **Method 3: Reset SQL Password via ePO Web Console (If Accessible)**  
+1. Log into the **Trellix ePO Web Console**.  
+2. Go to **Menu > Configuration > Server Settings**.  
+3. Find **Database Settings** and update the **username and password**.  
+4. Save changes and restart the **ePO services**.  
 
-5. **Software Product Deployment**: This task automates the distribution and installation of software products and updates to managed systems. It ensures that all endpoints have the necessary security software installed and are up to date.
+#### **Method 4: Manually Update SQL Credentials in SQL Server**  
+If the ePO server uses **SQL authentication**:  
+1. Open **SQL Server Management Studio (SSMS)** on the DB server.  
+2. Go to **Security > Logins**.  
+3. Right-click the **Trellix ePO database user** → **Properties**.  
+4. Update the **password** and apply changes.  
+5. Restart **Trellix ePO services**.  
 
-These default server tasks can be customized to align with specific organizational policies and operational requirements, providing flexibility in managing the security infrastructure. 
+#### **Final Step: Restart Trellix ePO Services**  
+1. Open **Services.msc** on the ePO server.  
+2. Restart these services:  
+   - **Trellix ePolicy Orchestrator Server**  
+   - **Trellix ePolicy Orchestrator Application Server**  
+
+After these steps, try logging into the **ePO Web Console** to verify if the issue is resolved. Let me know if you need further troubleshooting!
