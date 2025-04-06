@@ -1,7 +1,64 @@
-If the Distributed Repository (DR) assigned to the McAfee/Trellix agent does not have the package when you create a task to distribute it, the following can happen:  
+מעולה. אם אתה משתמש ב־**Trellix ePO** (ePolicy Orchestrator), הדשבורד שם הוא מרכז הניהול של כל מערך האבטחה בארגון שלך. הנה הפירוט של המרכיבים המרכזיים שיכולים להופיע ב־Dashboard של ePO:
 
-1. **Agent Fallback to Master Repository (if allowed)** – If the agent's policy allows it, the agent will attempt to retrieve the package from the Master Repository instead of the DR.  
-2. **Task Failure or Delay** – If the package is not available in any accessible repository, the deployment task may fail, or it may be delayed until the package is replicated to the DR.  
-3. **Repository Sync Needed** – If the DR is missing the package, an administrator must ensure that replication is properly set up so the package is copied from the Master Repository to the DR.  
+---
 
-To prevent issues, ensure that the package is successfully replicated to all necessary DRs before deploying it. You can check the **Repository Status** in the ePO console to verify availability.
+### **1. Threat Event Overview (סקירת אירועי איומים)**
+- הצגה גרפית של כמות וסוגי האיומים שהתגלו.
+- פילוח לפי:
+  - סוג האיום (וירוסים, רוגלות, התקפות רשת וכו').
+  - חומרה (קריטי, גבוה, בינוני, נמוך).
+  - מערכת או משתמש יעד.
+
+---
+
+### **2. System Compliance Status (סטטוס תאימות של תחנות)**
+- כמה תחנות תואמות לפוליסות האבטחה.
+- כמה לא מעודכנות, לא מוגנות או לא פעילות.
+- הצגה בצורת עוגה או טבלאות.
+
+---
+
+### **3. Agent Communication Status (סטטוס תקשורת של הסוכנים)**
+- כמה סוכנים מחוברים ל־ePO וכמה לא.
+- עד כמה התחנות מתעדכנות בזמן.
+- איתור תחנות בעייתיות.
+
+---
+
+### **4. Product Deployment Status (סטטוס פריסת מוצרים)**
+- פריסה של מוצרים כמו:
+  - Endpoint Security
+  - DLP
+  - Encryption
+- כמה תחנות עם/בלי התקנה, או התקנה חלקית.
+
+---
+
+### **5. Top 10 Detections (עשרת הזיהויים המובילים)**
+- הצגת האיומים הנפוצים ביותר בארגון.
+- כולל שם האיום, כמות גילויים, תחנות שנפגעו.
+
+---
+
+### **6. Policy Assignment Summary (סיכום הקצאת מדיניות)**
+- אילו פוליסות מופעלות ובאילו קבוצות.
+- אפשרות לגשת לשינויים ישירות מהדשבורד.
+
+---
+
+### **7. Custom Queries & Reports (שאילתות ודוחות מותאמים)**
+- ניתן ליצור דוחות מותאמים אישית שמופיעים בדשבורד.
+- לדוגמה:
+  - תחנות עם אנטי־וירוס לא פעיל.
+  - משתמשים שיצרו הכי הרבה התראות.
+  - פעילויות חריגות לפי שעה.
+
+---
+
+### **8. Widgets (ווידג'טים מותאמים אישית)**
+- ePO מאפשר להוסיף ווידג'טים לפי מה שחשוב לך.
+- ניתן לגרור ולסדר אותם איך שנוח.
+
+---
+
+אם תרצה – אני יכול לעזור לך לבנות דשבורד מותאם אישי ב־ePO לפי הצרכים של הארגון שלך (למשל: ניטור תחנות קריטיות, דגש על DLP, או זיהוי מהיר של תחנות לא מעודכנות). רוצה שנעשה את זה?
