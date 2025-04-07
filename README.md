@@ -1,64 +1,72 @@
-מעולה. אם אתה משתמש ב־**Trellix ePO** (ePolicy Orchestrator), הדשבורד שם הוא מרכז הניהול של כל מערך האבטחה בארגון שלך. הנה הפירוט של המרכיבים המרכזיים שיכולים להופיע ב־Dashboard של ePO:
+If you're using **Trellix ePO** and want to create a report or query to **see all "locks" in the database** (e.g., policy locks, client task locks, etc.), here's how you can do that:
 
 ---
 
-### **1. Threat Event Overview (סקירת אירועי איומים)**
-- הצגה גרפית של כמות וסוגי האיומים שהתגלו.
-- פילוח לפי:
-  - סוג האיום (וירוסים, רוגלות, התקפות רשת וכו').
-  - חומרה (קריטי, גבוה, בינוני, נמוך).
-  - מערכת או משתמש יעד.
+### **What Do You Mean by "Lock"?**
+
+ePO uses the concept of **"locks"** to prevent local changes to settings on endpoints, such as:
+
+- **Policy locks**: Prevent users from changing policy settings.
+- **Client task locks**: Prevent users from disabling or modifying tasks.
+- **Product property locks**: For specific product features (e.g., Endpoint Security modules).
+
+These "locks" are stored in the SQL DB as part of the **policy assignments** or in **table fields** indicating lock status.
 
 ---
 
-### **2. System Compliance Status (סטטוס תאימות של תחנות)**
-- כמה תחנות תואמות לפוליסות האבטחה.
-- כמה לא מעודכנות, לא מוגנות או לא פעילות.
-- הצגה בצורת עוגה או טבלאות.
+### **Method 1: SQL Query (Run from SQL Server Management Studio)**
+
+```sql
+SELECT 
+    LN.NodeName AS 'Computer Name',
+    P.ProductCode,
+    PA.PolicyLockStatus,
+    CASE 
+        WHEN PA.PolicyLockStatus = 1 THEN 'Locked'
+        WHEN PA.PolicyLockStatus = 0 THEN 'Unlocked'
+        ELSE 'Unknown'
+    END AS 'Lock Status',
+    CPG.Name AS 'Policy Name'
+FROM 
+    EPOLeafNode LN
+JOIN 
+    EPOPolicyAssignment PA ON LN.AutoID = PA.AgentGUID
+JOIN 
+    EPOProdPropsView P ON LN.AutoID = P.AgentGUID
+JOIN 
+    EPOPolicyObject PO ON PA.PolicyID = PO.PolicyID
+JOIN 
+    EPOPolicyCategory CPG ON PO.CategoryID = CPG.CategoryID
+WHERE 
+    PA.PolicyLockStatus IS NOT NULL
+ORDER BY 
+    LN.NodeName;
+```
+
+> This query gives you the list of computers, the product, the lock status, and the policy name.
 
 ---
 
-### **3. Agent Communication Status (סטטוס תקשורת של הסוכנים)**
-- כמה סוכנים מחוברים ל־ePO וכמה לא.
-- עד כמה התחנות מתעדכנות בזמן.
-- איתור תחנות בעייתיות.
+### **Method 2: ePO Console – Custom Query**
+
+1. Go to **Menu > Reporting > Queries & Reports**
+2. Click **New Query**
+3. Choose:
+   - **Feature**: "Managed Systems" or relevant product
+   - **Display results as**: Table
+4. Add Columns like:
+   - System Name
+   - Product Name
+   - Lock status (if available — some products expose lock fields)
+5. Use filters to show only systems with locked policies
+6. Save and run the query
 
 ---
 
-### **4. Product Deployment Status (סטטוס פריסת מוצרים)**
-- פריסה של מוצרים כמו:
-  - Endpoint Security
-  - DLP
-  - Encryption
-- כמה תחנות עם/בלי התקנה, או התקנה חלקית.
+### Let Me Know:
+Do you want to see:
+- **Policy locks**?
+- **Client task locks**?
+- Locks for a **specific product** (e.g., ENS, DLP)?
 
----
-
-### **5. Top 10 Detections (עשרת הזיהויים המובילים)**
-- הצגת האיומים הנפוצים ביותר בארגון.
-- כולל שם האיום, כמות גילויים, תחנות שנפגעו.
-
----
-
-### **6. Policy Assignment Summary (סיכום הקצאת מדיניות)**
-- אילו פוליסות מופעלות ובאילו קבוצות.
-- אפשרות לגשת לשינויים ישירות מהדשבורד.
-
----
-
-### **7. Custom Queries & Reports (שאילתות ודוחות מותאמים)**
-- ניתן ליצור דוחות מותאמים אישית שמופיעים בדשבורד.
-- לדוגמה:
-  - תחנות עם אנטי־וירוס לא פעיל.
-  - משתמשים שיצרו הכי הרבה התראות.
-  - פעילויות חריגות לפי שעה.
-
----
-
-### **8. Widgets (ווידג'טים מותאמים אישית)**
-- ePO מאפשר להוסיף ווידג'טים לפי מה שחשוב לך.
-- ניתן לגרור ולסדר אותם איך שנוח.
-
----
-
-אם תרצה – אני יכול לעזור לך לבנות דשבורד מותאם אישי ב־ePO לפי הצרכים של הארגון שלך (למשל: ניטור תחנות קריטיות, דגש על DLP, או זיהוי מהיר של תחנות לא מעודכנות). רוצה שנעשה את זה?
+I can tailor the query or report to exactly what you're after.
