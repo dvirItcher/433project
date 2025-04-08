@@ -1,72 +1,48 @@
-If you're using **Trellix ePO** and want to create a report or query to **see all "locks" in the database** (e.g., policy locks, client task locks, etc.), here's how you can do that:
+Yes, you **can view lock status from the ePO console**, but with some limitations. Here's how to do it for **policy locks** and **client task locks** using **queries** inside the ePO GUI:
 
 ---
 
-### **What Do You Mean by "Lock"?**
+## **1. View Policy Locks from the Console**
 
-ePO uses the concept of **"locks"** to prevent local changes to settings on endpoints, such as:
-
-- **Policy locks**: Prevent users from changing policy settings.
-- **Client task locks**: Prevent users from disabling or modifying tasks.
-- **Product property locks**: For specific product features (e.g., Endpoint Security modules).
-
-These "locks" are stored in the SQL DB as part of the **policy assignments** or in **table fields** indicating lock status.
-
----
-
-### **Method 1: SQL Query (Run from SQL Server Management Studio)**
-
-```sql
-SELECT 
-    LN.NodeName AS 'Computer Name',
-    P.ProductCode,
-    PA.PolicyLockStatus,
-    CASE 
-        WHEN PA.PolicyLockStatus = 1 THEN 'Locked'
-        WHEN PA.PolicyLockStatus = 0 THEN 'Unlocked'
-        ELSE 'Unknown'
-    END AS 'Lock Status',
-    CPG.Name AS 'Policy Name'
-FROM 
-    EPOLeafNode LN
-JOIN 
-    EPOPolicyAssignment PA ON LN.AutoID = PA.AgentGUID
-JOIN 
-    EPOProdPropsView P ON LN.AutoID = P.AgentGUID
-JOIN 
-    EPOPolicyObject PO ON PA.PolicyID = PO.PolicyID
-JOIN 
-    EPOPolicyCategory CPG ON PO.CategoryID = CPG.CategoryID
-WHERE 
-    PA.PolicyLockStatus IS NOT NULL
-ORDER BY 
-    LN.NodeName;
-```
-
-> This query gives you the list of computers, the product, the lock status, and the policy name.
-
----
-
-### **Method 2: ePO Console – Custom Query**
-
+### Steps:
 1. Go to **Menu > Reporting > Queries & Reports**
-2. Click **New Query**
-3. Choose:
-   - **Feature**: "Managed Systems" or relevant product
-   - **Display results as**: Table
-4. Add Columns like:
-   - System Name
-   - Product Name
-   - Lock status (if available — some products expose lock fields)
-5. Use filters to show only systems with locked policies
-6. Save and run the query
+2. Click **"New Query"**
+3. **Query Type**: Select **"Managed Systems"**
+4. Click **"Next"**
+5. In **Columns**, add:
+   - **Computer Name** (or System Name)
+   - **Product Family**
+   - **Policy Enforcement Status** (This may reflect lock status for some products)
+6. Click **"Next"**
+7. Add a **filter** like:
+   - `Policy Enforcement Status = Locked` (if available)
+8. Click **Next**, name the query, and save it.
+
+> **Note**: Not all policy lock details are exposed in the UI for all products, especially for custom policies or 3rd-party extensions. For full visibility, SQL queries offer more detail.
 
 ---
 
-### Let Me Know:
-Do you want to see:
-- **Policy locks**?
-- **Client task locks**?
-- Locks for a **specific product** (e.g., ENS, DLP)?
+## **2. View Client Task Locks from the Console**
 
-I can tailor the query or report to exactly what you're after.
+### Steps:
+1. Go to **Menu > Client Task Catalog**
+2. Click on a **task category** (e.g., McAfee Agent, ENS, etc.)
+3. You'll see a list of tasks. The **lock icon** next to each task name indicates whether the task is locked.
+   - **Closed padlock** = Locked
+   - **Open padlock** = Unlocked
+
+4. To view **assigned systems**:
+   - Click on the task name
+   - Choose **"Assigned Systems"** tab
+
+There’s **no built-in query** for showing all systems with client task lock status — but again, the **SQL query I gave earlier** can help extract that info in bulk.
+
+---
+
+## Want a GUI report instead?
+
+If you prefer a **GUI-based report with lock icons**, we can:
+- Build a custom query to reflect lock status as a column
+- Or export a list from the **System Tree** with applied columns
+
+Let me know if you want help building a saved custom query or dashboard widget.
