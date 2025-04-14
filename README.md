@@ -1,36 +1,45 @@
-Steps to Schedule Daily Updates for a SuperAgent in Trellix ePO:
-Log in to Trellix ePO Console.
+Got it! You want to:
 
-Go to Menu > Systems > System Tree.
+1. **Restore the old (good) policy and apply it again**  
+2. **Keep the bad (current) policy saved as a backup**, not deleted
 
-Locate and select the group that contains your SuperAgent.
+Here’s exactly how to do that in **Trellix ePO (Policy Catalog)**:
 
-In the right-hand panel, click on the Assigned Client Tasks tab.
+---
 
-Click Actions > New Client Task Assignment.
+### 🔁 Step 1: Clone the Bad Policy (Make a Backup)
+So you don’t lose the current bad policy:
 
-Choose:
+1. Go to **Menu > Policy Catalog**.
+2. Find the **bad policy**.
+3. Click the dropdown arrow or right-click it.
+4. Select **Duplicate** (or **Clone**).
+5. Name it something like: `PolicyName - Backup` or `PolicyName_BadVersion`.
 
-Product: McAfee Agent
+✅ Now you’ve safely backed up the bad policy for future reference or review.
 
-Task Type: Product Update
+---
 
-Click Create New Task (or select an existing one to edit).
+### 🔄 Step 2: Apply the Old (Good) Policy
+1. Find the **old policy** in the same **Policy Catalog**.
+2. Go to **Menu > System Tree**.
+3. Select the group or system where the policy needs to be applied.
+4. Click **Assigned Policies** tab.
+5. For the product (e.g., ENS Threat Prevention, DLP, etc.), select the **old good policy** from the dropdown.
+6. Click **Save**.
 
-Name the task (e.g., “Daily SuperAgent Update”).
+✅ The old policy will now be applied again to your target systems.
 
-In the Update Task Configuration:
+---
 
-Check the boxes for the updates you want (e.g., DAT, Engine, etc.).
+### 🔁 Optional: Rename the Bad Policy Clearly
+Just to avoid confusion in the future:
+- Go to **Policy Catalog**, find the bad policy (or its backup).
+- Rename it to something like:  
+  `MyPolicyName - Do Not Use (Bad)`  
+  or  
+  `MyPolicyName - Old Misconfigured Version`.
 
-Under Schedule, choose:
+---
 
-Schedule Type: Daily
-
-Start Time: Set your preferred time (e.g., 12:00 PM)
-
-Repeat: Every 1 day
-
-Click Next and assign the task to the SuperAgent system(s).
-
-Finish the wizard and click Save
+Let me know which specific product (like ENS, DLP, etc.) you're working with, and I can guide you more precisely if needed.
