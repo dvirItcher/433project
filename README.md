@@ -1,45 +1,46 @@
-Got it! You want to:
+In Trellix (formerly McAfee Enterprise), if you're dealing with **injection code related to certificates in the common policy**, you’re likely referring to how **policies are applied to endpoints** and how **scripts or code injections** might interact with **certificate validation**—especially in the context of **web control, endpoint protection, or application control**.
 
-1. **Restore the old (good) policy and apply it again**  
-2. **Keep the bad (current) policy saved as a backup**, not deleted
-
-Here’s exactly how to do that in **Trellix ePO (Policy Catalog)**:
+Here’s how these components may tie together:
 
 ---
 
-### 🔁 Step 1: Clone the Bad Policy (Make a Backup)
-So you don’t lose the current bad policy:
-
-1. Go to **Menu > Policy Catalog**.
-2. Find the **bad policy**.
-3. Click the dropdown arrow or right-click it.
-4. Select **Duplicate** (or **Clone**).
-5. Name it something like: `PolicyName - Backup` or `PolicyName_BadVersion`.
-
-✅ Now you’ve safely backed up the bad policy for future reference or review.
+### 🔐 Certificates in Common Policy
+In Trellix ePolicy Orchestrator (ePO), **certificates** in common policies are typically used to:
+- Ensure **trusted communication** between agents and servers.
+- Define **trusted sources** for applications or web traffic.
+- Sign **code or scripts** that are allowed to execute (especially in **Application Control** or **Dynamic Application Containment**).
 
 ---
 
-### 🔄 Step 2: Apply the Old (Good) Policy
-1. Find the **old policy** in the same **Policy Catalog**.
-2. Go to **Menu > System Tree**.
-3. Select the group or system where the policy needs to be applied.
-4. Click **Assigned Policies** tab.
-5. For the product (e.g., ENS Threat Prevention, DLP, etc.), select the **old good policy** from the dropdown.
-6. Click **Save**.
-
-✅ The old policy will now be applied again to your target systems.
+### 💉 Injection Code Context
+"Injection code" may refer to:
+- **Custom scripts or rules** injected into endpoints via policies.
+- **Potentially malicious code** trying to bypass security using trusted certificates.
+- **White-listed applications** using signed certificates to gain elevated privileges.
 
 ---
 
-### 🔁 Optional: Rename the Bad Policy Clearly
-Just to avoid confusion in the future:
-- Go to **Policy Catalog**, find the bad policy (or its backup).
-- Rename it to something like:  
-  `MyPolicyName - Do Not Use (Bad)`  
-  or  
-  `MyPolicyName - Old Misconfigured Version`.
+### 📎 How They Are Related
+1. **Application Control Policies**:
+   - You can **whitelist certificates** to allow code signed with them to run.
+   - If malicious code is signed with a **trusted certificate**, it could bypass execution control.
+   - Certificate whitelisting is often managed in the **common policy** area.
+
+2. **Web Control / Proxy Policies**:
+   - Code or script injections over HTTPS rely on **SSL inspection**.
+   - Trellix can use a **certificate for SSL inspection** – and if improperly configured, it might allow injected content to pass.
+
+3. **Dynamic Application Containment (DAC)**:
+   - Uses policies that might allow/block behavior based on certificate trust.
+   - Code injection can be analyzed for behaviors, and if signed by a trusted cert (allowed in policy), it may not be contained.
 
 ---
 
-Let me know which specific product (like ENS, DLP, etc.) you're working with, and I can guide you more precisely if needed.
+### ✅ What to Check
+- **Common Policy Certificate Lists**: See what certificates are trusted under Application Control or Web Control.
+- **Custom Script Injections**: Audit if scripts are being pushed via ePO or executed via allowed certs.
+- **Rule Exceptions Based on Certs**: Are there exceptions that allow signed code to run without deeper inspection?
+
+---
+
+If you have a more specific context (like a particular module – ENS, Web Control, etc.), I can dig deeper. Want to narrow it down a bit?
