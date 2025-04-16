@@ -1,58 +1,33 @@
-To **stop or close Trellix ENS services** on a system, you typically **cannot just stop them normally**, because ENS is designed to **protect itself from tampering**, even by local administrators. However, there are **authorized ways** to temporarily stop or disable ENS services for troubleshooting or maintenance.
+You don't need to add the EICAR file to Trellix ENS's signature database — **EICAR is already universally recognized by antivirus and endpoint protection software**, including Trellix (formerly McAfee ENS), as a **standard test file**.
 
-Here are your options, based on your role and purpose:
+### Here’s how it works:
 
----
-
-### ⚠️ **Option 1: Using Trellix ePO (recommended and centralized)**
-
-If you manage endpoints via **Trellix ePO (ePolicy Orchestrator)**:
-
-1. **Create a client task** to stop or uninstall ENS modules.
-2. Go to:
-   - **Menu > Client Tasks Catalog**
-   - Choose the product (**McAfee Endpoint Security**) and task type (**Product Deployment** or **Custom**).
-   - Set action to **"Stop"**, **"Disable"**, or **"Uninstall"** depending on the goal.
-3. Assign the task to the target system or system group.
-4. Run the task immediately or schedule it.
-
-> ✅ Best method for corporate/enterprise environments.
+**EICAR** (European Institute for Computer Antivirus Research) created this file as a harmless way to test antivirus software. It's a simple text string that’s detected as malicious by almost every antivirus solution without posing any risk.
 
 ---
 
-### 🖥️ **Option 2: On a local machine (with permission)**
+### ✅ What you should do:
 
-1. **Access with Administrator rights**.
-2. **Disable Self-Protection first:**
-   - Open **Endpoint Security Console**.
-   - Go to **Settings > General > Self-Protection**.
-   - Uncheck or disable it (may require a password if enforced).
-3. Then try stopping the services using `services.msc` or:
+1. **Create the EICAR file manually:**
+   - Open Notepad or any text editor.
+   - Paste this string exactly:
+     ```
+     X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*
+     ```
+   - Save the file as `eicar.com`.
 
-   **Via Command Line (Admin):**
-   ```cmd
-   net stop "McAfee Endpoint Security Platform"
-   net stop "McAfee Endpoint Security Threat Prevention"
-   net stop "McAfee Endpoint Security Firewall"
-   net stop "McAfee Endpoint Security Web Control"
-   ```
+2. **Run a scan with Trellix ENS:**
+   - Either drop the file into a location that ENS actively scans.
+   - Or manually trigger an **on-demand scan** from the ENS console targeting the file or folder containing it.
 
-   If you’re unsure of the exact names, list all McAfee/Trellix services with:
-   ```cmd
-   sc queryex type= service | findstr /I "mcafee"
-   ```
-
-4. If ENS is actively protected, these commands will **fail unless self-protection is disabled**.
+3. **Expected behavior:**
+   - Trellix ENS should detect and quarantine/delete the file automatically.
+   - You can also check the **Threat Event Logs** or **ePO (if you're using it)** to confirm detection.
 
 ---
 
-### 🔐 If you can't disable self-protection:
+### 🔒 Important Notes:
+- **Do not rename or modify** the EICAR file or its contents, or it might not be detected.
+- You can also test **real-time scanning** by just saving the file in a monitored folder (like Desktop) and watching ENS act.
 
-You won’t be able to stop ENS unless:
-- You have the **administrative password** or access rights.
-- You're using **ePO with the correct policies**.
-- The system is in **managed mode** and not enforcing **tamper protection**.
-
----
-
-Would you like a PowerShell script or batch file to automate this, assuming you have the right access?
+Let me know if you want help checking detection in the logs or triggering different types of scans.
