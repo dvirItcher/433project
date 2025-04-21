@@ -1,33 +1,37 @@
-You don't need to add the EICAR file to Trellix ENS's signature database — **EICAR is already universally recognized by antivirus and endpoint protection software**, including Trellix (formerly McAfee ENS), as a **standard test file**.
+# ⚠️ Run as a normal (non-admin) user
+# Set up paths
+$sysmonDir = "C:\ProgramData\Sysmon"
+$targetDir = "$env:USERPROFILE\Desktop\SysmonSymlinkTest"
+$testFile = "$targetDir\test.txt"
 
-### Here’s how it works:
+# Clean up any previous test
+Remove-Item $targetDir -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path $targetDir | Out-Null
+Remove-Item $sysmonDir -Recurse -Force -ErrorAction SilentlyContinue
 
-**EICAR** (European Institute for Computer Antivirus Research) created this file as a harmless way to test antivirus software. It's a simple text string that’s detected as malicious by almost every antivirus solution without posing any risk.
+# Create the symlink
+cmd /c "mklink /D `"$sysmonDir`" `"$targetDir`""
 
----
+# Wait a bit
+Start-Sleep -Seconds 2
 
-### ✅ What you should do:
+# Trigger a sysmon config reload (must be installed)
+try {
+    & "$env:windir\Sysmon64.exe" -c "$env:windir\Sysmon.xml"
+} catch {
+    Write-Host "[!] Could not reload Sysmon config. Try running this manually." -ForegroundColor Red
+}
 
-1. **Create the EICAR file manually:**
-   - Open Notepad or any text editor.
-   - Paste this string exactly:
-     ```
-     X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*
-     ```
-   - Save the file as `eicar.com`.
+# Wait for Sysmon to write
+Start-Sleep -Seconds 3
 
-2. **Run a scan with Trellix ENS:**
-   - Either drop the file into a location that ENS actively scans.
-   - Or manually trigger an **on-demand scan** from the ENS console targeting the file or folder containing it.
+# Check if Sysmon wrote anything in the symlink target
+if (Test-Path $testFile -or (Get-ChildItem $targetDir | Measure-Object).Count -gt 0) {
+    Write-Host "`n🚨 Your Sysmon installation appears to be vulnerable to CVE-2023-29343!" -ForegroundColor Red
+    Write-Host "→ It followed the symlink and wrote into: $targetDir`n"
+} else {
+    Write-Host "`n✅ Sysmon did NOT follow the symlink. Likely not vulnerable." -ForegroundColor Green
+}
 
-3. **Expected behavior:**
-   - Trellix ENS should detect and quarantine/delete the file automatically.
-   - You can also check the **Threat Event Logs** or **ePO (if you're using it)** to confirm detection.
-
----
-
-### 🔒 Important Notes:
-- **Do not rename or modify** the EICAR file or its contents, or it might not be detected.
-- You can also test **real-time scanning** by just saving the file in a monitored folder (like Desktop) and watching ENS act.
-
-Let me know if you want help checking detection in the logs or triggering different types of scans.
+# Clean up
+Remove-Item $sysmonDir -Recurse -Force -ErrorAction SilentlyContinue
