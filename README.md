@@ -1,82 +1,144 @@
-Certainly! Here's a comprehensive overview of Trellix's System Information Reporter (SIR), formerly known as McAfee System Information Reporter.([doczz.net][1])
+Thanks for sharing the official Trellix documentation link. You're absolutely right — the previous response was based on legacy McAfee SIR sources, which don't fully reflect Trellix’s updated version. Let's go directly from **the official Trellix SIR User Guide (PDF)** you linked.
 
 ---
 
-## 🔍 Overview
+## ✅ **Trellix System Information Reporter (SIR) – Overview (Based on Official User Guide)**
 
-Trellix System Information Reporter (SIR) is a policy-driven tool designed to collect and manage detailed system information across enterprise environments. It integrates seamlessly with Trellix ePolicy Orchestrator (ePO) versions 4.0 and 4.5, enabling centralized management and reporting of system properties, environment variables, registry key values, and installed software on managed nodes. ([doczz.net][1])
+The **System Information Reporter (SIR)** is an ePO-integrated Trellix product that enables security and IT teams to **collect** and **report** crucial system configuration and event data from managed endpoints. It’s typically used to assist with **threat investigations**, **compliance auditing**, and **environment baselining**.
 
 ---
 
-## 🛠️ Key Features
+## 🧠 **Core Capabilities of SIR**
 
-### 1. **Centralized Management**
+### 1. **ePO Integration**
 
-* **Policy Enforcement:** Utilizes ePO to enforce SIR policies across managed nodes.
-* **Deployment Flexibility:** Supports both standalone installations and deployments via ePO.([doczz.net][1])
+* Fully integrated with **Trellix ePolicy Orchestrator (ePO)**.
+* Can be centrally managed, configured, and updated via ePO.
+* All operations (data collection, policy application, queries) are done through the ePO console.
 
 ### 2. **Data Collection**
 
-* **System Properties:** Gathers information on software versions, patches, and hotfixes.
-* **Environment Variables & Registry Keys:** Collects custom environment variables and registry key values.
-* **File Searches:** Allows searching for specific files on managed nodes.([doczz.net][1])
+SIR collects information from client systems using **three main policy types**:
 
-### 3. **Registry Management**
+#### A. **Registry Data**
 
-* **Modification Capabilities:** Enables creation, modification, or deletion of registry keys.
-* **Backup & Restore:** Automatically backs up registry keys before changes, supporting up to 20 backups.
-* **Restoration:** Facilitates restoration of registry keys from backups if needed.([doczz.net][1])
+* Gathers registry key and value data from Windows machines.
+* Admins specify:
 
-### 4. **Reporting**
+  * Hive (e.g., HKEY\_LOCAL\_MACHINE)
+  * Key path
+  * Value name
+  * Value type (e.g., string, DWORD)
 
-* **Predefined Reports:** Provides reports such as:
+#### B. **File Data**
 
-  * **List of Applications:** Installed applications, including hidden ones.
-  * **List of Processes:** Running processes with their IDs.
-  * **List of Services:** Services on managed nodes with statuses.
-  * **Product Protection View:** Properties of managed products like patches and hotfixes.
-  * **System Information Properties:** Details on USB devices, network cards, Internet Explorer version, and other installed software.([doczz.net][1])
+* Searches files on endpoints to collect attributes:
 
-### 5. **Security & Permissions**
+  * File name
+  * Version
+  * Creation/Modified dates
+  * Hash (MD5/SHA-1)
 
-* **Registry Key Security:** Ensures secure modification of registry keys to prevent system damage.
-* **Permission Sets:** Allows creation of permission sets in ePO to restrict access to SIR features, ensuring only authorized administrators can make changes.([doczz.net][1], [Trellix][2])
+#### C. **Event Log Data**
 
----
+* Collects entries from:
 
-## 📋 Installation & Deployment
+  * System logs
+  * Application logs
+  * Security logs
+* Filters by:
 
-### **Standard Installation**
-
-1. Download the `SIRInstall.zip` archive.
-2. Extract and run `SIR.msi` to initiate the installation wizard.
-3. Follow on-screen instructions to complete the installation.([doczz.net][1])
-
-### **Deployment via ePolicy Orchestrator**
-
-1. Check in the SIR deployment package (`SIRDeploy.ZIP`) to the master repository.
-2. Install the SIR extension within ePO.
-3. Deploy SIR to managed nodes through ePO's client task assignments.
-4. Assign and enforce policies as needed.([doczz.net][1])
+  * Event ID
+  * Source
+  * Time window
+  * Severity level
 
 ---
 
-## 🧩 Integration with ePolicy Orchestrator (ePO)
+## 🛠️ **Policy Management**
 
-* **Policy Management:** Create and manage "Collect Data" and "Set Registry" policies.
-* **Policy Assignment:** Assign policies to specific systems or groups within the system tree.
-* **Policy Enforcement:** Enable or disable policy enforcement, with options to lock or unlock policy inheritance.
-* **Reporting:** Utilize ePO's Query Builder to create, edit, and manage queries, generating customizable reports based on collected data.([doczz.net][1])
+### 1. **Policy Types in ePO**
+
+* **Registry Policy** – define which registry entries to collect.
+* **File Policy** – define directories/files and attributes to report.
+* **Event Log Policy** – configure how logs are collected and filtered.
+
+### 2. **Policy Enforcement**
+
+* You can **assign policies** to systems or groups.
+* SIR enforces collection based on these assignments.
+* Collected data is **reported back to the ePO server**.
 
 ---
 
-## 📚 Additional Resources
+## 📊 **Reporting and Queries**
 
-For more detailed information, you can refer to the [System Information Reporter 1.0 User Guide](https://doczz.net/doc/8013703/system-information-reporter-1.0-user-guide).
+* All collected data can be viewed in **custom or predefined queries**.
+* Queries can show data such as:
+
+  * Systems missing a registry key
+  * Systems with a certain app installed
+  * Event log activity related to security threats
+
+### Examples:
+
+* Query: Show all systems missing antivirus registry entry.
+* Query: List endpoints where a suspicious file was found.
+* Query: Collect all Event ID 4625 (failed login attempts).
 
 ---
 
-If you need further assistance or specific details on any aspect of Trellix SIR, feel free to ask!
+## ⚙️ **Use Cases**
 
-[1]: https://doczz.net/doc/8013703/system-information-reporter-1.0-user-guide?utm_source=chatgpt.com "System Information Reporter 1.0 User Guide"
-[2]: https://www.trellix.com/blogs/perspectives/mitigating-security-update-risks-part-3/?utm_source=chatgpt.com "Mitigating Security Update Risks Part 3: Product Features Endpoint Forensics"
+* **Threat Hunting:** Identify IOCs across systems using registry/file/event data.
+* **Compliance Auditing:** Verify presence of required keys, software, or config.
+* **Baseline Reporting:** Create a snapshot of systems’ state and track changes.
+* **Custom Checks:** Build policies to check for specific configurations or signs of compromise.
+
+---
+
+## 🔐 **Security Considerations**
+
+* Only authorized ePO users with SIR permissions can create/edit policies or view results.
+* You can create **role-based access controls** (RBAC) in ePO to limit SIR functions.
+
+---
+
+## 📁 **Installation & Deployment Notes**
+
+* SIR is deployed as an **endpoint agent extension** via ePO.
+* The **SIR extension** and **client package** must both be installed in ePO.
+* After that, you can assign tasks/policies to deploy and run SIR on endpoints.
+
+---
+
+## 🔄 **SIR Workflow Summary**
+
+1. **Install SIR Extension & Package in ePO**
+2. **Create Collection Policies** (File, Registry, Event Log)
+3. **Assign Policies to Systems/Groups**
+4. **Collect & Report Data from Endpoints**
+5. **Use Queries & Dashboards to Analyze Data**
+
+---
+
+## 📘 Documentation Details
+
+From your provided [PDF guide](https://docs-be.trellix.com/bundle/system-information-reporter-user-guide/raw/resource/enus/system-information-reporter-user-guide.pdf), this version of SIR is:
+
+* **More targeted toward security investigations**
+* **Streamlined into ePO**
+* **Focused on low-footprint data collection**
+* No longer has older features like process/service inventory (those are now covered by other Trellix tools like ENS or HX).
+
+---
+
+## ❗ Important Notes & Limitations
+
+* **Windows-only:** SIR is currently built for **Windows platforms**.
+* **No automated remediation:** SIR is for **reporting only**, not enforcement.
+* **No real-time alerts:** SIR works on scheduled collection intervals.
+
+---
+
+If you need specific examples (e.g., JSON/XML output, dashboards, queries) or want a breakdown of how to write effective registry or event log collection policies, let me know — I can help create those or walk you through building them in ePO.
