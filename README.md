@@ -1,44 +1,61 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/jiffies.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+
+#define PROC_NAME "uptime"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("ChatGPT");
-MODULE_DESCRIPTION("Kernel module to overwrite jiffies");
+MODULE_DESCRIPTION("Fake /proc/uptime");
 MODULE_VERSION("1.0");
 
-static unsigned long new_jiffies = 0;
+static struct proc_dir_entry *proc_entry;
 
-module_param(new_jiffies, ulong, 0);
-MODULE_PARM_DESC(new_jiffies, "New value for jiffies");
-
-static int __init jiffies_patch_init(void)
+// This is our custom read function for /proc/uptime
+static int fake_uptime_show(struct seq_file *m, void *v)
 {
-    printk(KERN_INFO "[+] jiffies_patch loaded\n");
-    printk(KERN_INFO "[+] Original jiffies: %lu\n", jiffies);
-
-    jiffies = new_jiffies;
-
-    printk(KERN_INFO "[+] Modified jiffies: %lu\n", jiffies);
+    // Return 10 seconds uptime, 0 seconds idle
+    seq_printf(m, "10.00 0.00\n");
     return 0;
 }
 
-static void __exit jiffies_patch_exit(void)
+// Wrappers required by procfs
+static int fake_uptime_open(struct inode *inode, struct file *file)
 {
-    printk(KERN_INFO "[-] jiffies_patch unloaded\n");
+    return single_open(file, fake_uptime_show, NULL);
 }
 
-module_init(jiffies_patch_init);
-module_exit(jiffies_patch_exit);
+static const struct proc_ops fake_uptime_fops = {
+    .proc_open = fake_uptime_open,
+    .proc_read = seq_read,
+    .proc_lseek = seq_lseek,
+    .proc_release = single_release,
+};
 
+static int __init fake_uptime_init(void)
+{
+    // Remove the original /proc/uptime (hidden, not deleted)
+    remove_proc_entry(PROC_NAME, NULL);
 
+    // Create our fake one
+    proc_entry = proc_create(PROC_NAME, 0, NULL, &fake_uptime_fops);
+    if (!proc_entry) {
+        pr_err("Failed to create /proc/uptime\n");
+        return -ENOMEM;
+    }
 
+    pr_info("[+] Fake uptime module loaded\n");
+    return 0;
+}
 
-obj-m += jiffies_patch.o
+static void __exit fake_uptime_exit(void)
+{
+    // Remove our custom /proc/uptime
+    remove_proc_entry(PROC_NAME, NULL);
+    pr_info("[-] Fake uptime module unloaded\n");
+}
 
-all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-
-clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+module_init(fake_uptime_init);
+module_exit(fake_uptime_exit);
