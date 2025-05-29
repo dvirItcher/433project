@@ -59,3 +59,14 @@ static void __exit fake_uptime_exit(void)
 
 module_init(fake_uptime_init);
 module_exit(fake_uptime_exit);
+
+
+
+
+obj-m += fake_uptime.o
+
+all:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+clean:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
