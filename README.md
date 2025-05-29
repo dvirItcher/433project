@@ -31,3 +31,14 @@ static void __exit jiffies_patch_exit(void)
 
 module_init(jiffies_patch_init);
 module_exit(jiffies_patch_exit);
+
+
+
+
+obj-m += jiffies_patch.o
+
+all:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+clean:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
